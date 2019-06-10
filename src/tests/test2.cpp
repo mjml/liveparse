@@ -4,7 +4,7 @@
 
 #define DEBUG_BUFFER
 
-#include "buffer.hpp"
+#include "tree_buffer.hpp"
 
 namespace li = liveparse;
 using namespace std;

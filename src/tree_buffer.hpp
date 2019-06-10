@@ -4,7 +4,7 @@ namespace liveparse
 {
 
 template <typename CharT>
-class buffer;
+class tree_buffer;
 
 }
 
@@ -36,7 +36,7 @@ namespace bi = boost::intrusive;
 namespace lp = liveparse;
 
 template <typename CharT>
-class buffer
+class tree_buffer
 {
 public:
 	typedef CharT char_type;
@@ -72,7 +72,7 @@ protected:
 	class node
 	{
 	public:
-		friend class buffer<CharT>;
+		friend class tree_buffer<CharT>;
 		typedef node node_t;
 		
 	#ifdef DEBUG_BUFFER
@@ -171,8 +171,8 @@ public:
 	// Temporary provisioned types to be replaced by formal iterator classes
 	typedef iterator marker;
 	
-	buffer() : root(nullptr) {}
-	~buffer() {
+	tree_buffer() : root(nullptr) {}
+	~tree_buffer() {
 		if (root) delete root;
 	}
 	
@@ -202,13 +202,13 @@ public:
 
 
 template <typename CharT>
-typename buffer<CharT>::iterator buffer<CharT>::at (int pos)
+typename tree_buffer<CharT>::iterator tree_buffer<CharT>::at (int pos)
 {
 	return root->at(pos);
 }
 
 template <typename CharT>
-typename buffer<CharT>::iterator buffer<CharT>::span_node::at (int pos)
+typename tree_buffer<CharT>::iterator tree_buffer<CharT>::span_node::at (int pos)
 {
 	typename span_node::child_list::iterator last;
 	for (auto child = children.begin(); child != children.end(); child++) {
@@ -222,7 +222,7 @@ typename buffer<CharT>::iterator buffer<CharT>::span_node::at (int pos)
 }
 
 template <typename CharT>
-typename buffer<CharT>::iterator buffer<CharT>::memory_node::at (int pos)
+typename tree_buffer<CharT>::iterator tree_buffer<CharT>::memory_node::at (int pos)
 {
 	if (pos > this->siz) {
 		throw std::range_error ("pos > siz");
@@ -232,7 +232,7 @@ typename buffer<CharT>::iterator buffer<CharT>::memory_node::at (int pos)
 
 
 template <typename CharT>
-void buffer<CharT>::insert (iterator& it, CharT* strdata, int length)
+void tree_buffer<CharT>::insert (iterator& it, CharT* strdata, int length)
 {
 	it->mnode->insert(it, strdata, length);
 
@@ -246,7 +246,7 @@ void buffer<CharT>::insert (iterator& it, CharT* strdata, int length)
 
 
 template <typename CharT>
-void buffer<CharT>::span_node::insert (iterator& at, CharT* strdata, int length)
+void tree_buffer<CharT>::span_node::insert (iterator& at, CharT* strdata, int length)
 {
 	auto mnode = at->mnode;
 	
@@ -262,13 +262,13 @@ void buffer<CharT>::span_node::insert (iterator& at, CharT* strdata, int length)
 }
 
 template <typename CharT>
-void buffer<CharT>::span_node::remove (iterator& from, iterator& to)
+void tree_buffer<CharT>::span_node::remove (iterator& from, iterator& to)
 {
 	
 }
 
 template <typename CharT>
-void buffer<CharT>::memory_node::insert (iterator& it, CharT* strdata, int length)
+void tree_buffer<CharT>::memory_node::insert (iterator& it, CharT* strdata, int length)
 {
 	if (length + this->siz > capacity) {
 		throw std::range_error("mnode.size + length > mnode.capacity");
@@ -307,20 +307,20 @@ void buffer<CharT>::memory_node::insert (iterator& it, CharT* strdata, int lengt
 	
 }
 
-std::ostream& operator<< (std::ostream& os, buffer<char>& b)
+std::ostream& operator<< (std::ostream& os, tree_buffer<char>& b)
 {
 	return os << b.root;
 }
 
 
-std::ostream& operator<< (std::ostream& os, buffer<char>::node& n)
+std::ostream& operator<< (std::ostream& os, tree_buffer<char>::node& n)
 {
 	return n.printTo(os);
 }
 
 
 template<typename CharT>
-std::ostream& buffer<CharT>::span_node::printTo (std::ostream& os)
+std::ostream& tree_buffer<CharT>::span_node::printTo (std::ostream& os)
 {	
 	for (auto& it : this->children) {
 		os << it;
@@ -329,7 +329,7 @@ std::ostream& buffer<CharT>::span_node::printTo (std::ostream& os)
 }
 
 template<typename CharT>
-std::ostream& buffer<CharT>::memory_node::printTo (std::ostream& os)
+std::ostream& tree_buffer<CharT>::memory_node::printTo (std::ostream& os)
 {
 	for (int i=0; i < this->siz; i++) {
 		os << this->buf[i];
