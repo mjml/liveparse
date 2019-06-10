@@ -12,12 +12,12 @@ using namespace std;
 int main (int argc, char* argv[])
 {
 
-	li::buffer<char>::memory_node m8b;
-	li::buffer<char>::memory_node m8c;
-	li::buffer<char>::memory_node m8d;
-	li::buffer<char>::span_node s8a;
-	li::buffer<char>::span_node s8a2;
-	li::buffer<char>::span_node s8a3;
+	li::tree_buffer<char>::memory_node m8b;
+	li::tree_buffer<char>::memory_node m8c;
+	li::tree_buffer<char>::memory_node m8d;
+	li::tree_buffer<char>::span_node s8a;
+	li::tree_buffer<char>::span_node s8a2;
+	li::tree_buffer<char>::span_node s8a3;
 
 	char text_buffer[] = "Test string.";
 	

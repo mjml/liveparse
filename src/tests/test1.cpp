@@ -12,8 +12,8 @@ using namespace std;
 int main (int argc, char* argv[])
 {
 
-	li::buffer<char>::memory_node m8a;
-	li::buffer<char16_t>::memory_node m16a;
+	li::tree_buffer<char>::memory_node m8a;
+	li::tree_buffer<char16_t>::memory_node m16a;
 
 	cout << "The sizeof of m8a is " << sizeof(m8a) << endl;
 	cout << "The sizeof of m16a is " << sizeof(m16a) << endl;

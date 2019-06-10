@@ -15,6 +15,7 @@ class tree_buffer;
 #include <iostream>
 #include <boost/intrusive/list.hpp>
 
+using namespace std;
 
 namespace liveparse
 {
@@ -33,7 +34,6 @@ namespace liveparse
 #endif
 
 namespace bi = boost::intrusive;
-namespace lp = liveparse;
 
 template <typename CharT>
 class tree_buffer
@@ -61,7 +61,8 @@ protected:
 		iterator& operator-- ();
 		iterator& operator+= (offset_type i);
 		iterator& operator-= (offset_type i);
-		iterator* operator->() { return this; }
+		const iterator* operator->() const { return this; }
+		iterator operator->() { return this; }
 		
 	};
 	
@@ -86,6 +87,7 @@ protected:
 		virtual iterator at (int pos) = 0;
 		virtual offset_type size() = 0;
 		virtual std::ostream& printTo (std::ostream& os) = 0;
+		virtual std::ostream& dot (std::ostream& os) = 0;
 		span_node* parent;
 		offset_type offset_start;
 		bi::list_member_hook<> list_member;
@@ -95,8 +97,7 @@ protected:
 															&node::list_member >  list_member_type;
 		
 	};
-
-
+	
 	/**
 	 * Indexing structure that contains other span nodes and memory nodes.
 	 */
@@ -115,13 +116,11 @@ protected:
 		int get_num_children() { return children.size(); }
 		iterator at (int pos);
 		offset_type size() { return offset_end - node::offset_start; }
-		void insert (iterator& it, CharT* strdata, int length);
+		void insert (const iterator& it, CharT* strdata, int length);
 		void remove (iterator& from, iterator& to);
 		std::ostream& printTo (std::ostream& os);
-
-
+		std::ostream& dot (std::ostream& os);
 	};
-
 	
 	struct memory_node_metadata_s {
 		memory_node_metadata_s() : siz(0), next(nullptr) {}
@@ -136,17 +135,18 @@ protected:
 	{
 	public:
 		typedef memory_node mem_t;
+		friend class span_node;
 		
 	public:
 		memory_node () {}
 		virtual ~memory_node () { }
 		
-		
 		iterator at (int pos);
 		offset_type size() { return this->siz; }
-		void insert (iterator& it, CharT* strdata, int length);
-		void remove (iterator& from, iterator& to, node& n);
+		void insert (const iterator& it, CharT* strdata, int length);
+		void remove (iterator& from, iterator& to);
 		std::ostream& printTo (std::ostream& os);
+		std::ostream& dot (std::ostream& os);
 		
 #ifdef DEBUG_BUFFER
 	public:
@@ -157,15 +157,12 @@ protected:
 		static constexpr int metadata_size() {
 			return sizeof(node) + sizeof(memory_node_metadata_s);
 		}
-		
+
 		static const int capacity = (MEMORY_NODE_CAPACITY - metadata_size()) / sizeof(CharT);
 		
-		//offset_type  siz;
-		//memory_node* next;
 		CharT        buf[capacity];
 	
 	};
-	
 	
 public:
 	// Temporary provisioned types to be replaced by formal iterator classes
@@ -186,10 +183,11 @@ public:
 	iterator end ();
 	iterator at (int pos);
 	
-	void insert (iterator& it, CharT* strdata, int length);
+	void insert (const iterator& it, CharT* strdata, int length);
 	void remove (iterator& from, iterator& to);
 
 	std::ostream& operator<< (std::ostream& os);
+	std::ostream& dot (std::ostream& os);
 	
 #ifdef DEBUG_BUFFER
 	public:
@@ -232,9 +230,9 @@ typename tree_buffer<CharT>::iterator tree_buffer<CharT>::memory_node::at (int p
 
 
 template <typename CharT>
-void tree_buffer<CharT>::insert (iterator& it, CharT* strdata, int length)
+void tree_buffer<CharT>::insert (const iterator& at, CharT* strdata, int length)
 {
-	it->mnode->insert(it, strdata, length);
+	at->mnode->insert(at, strdata, length);
 
 	// last step: adjust to possibility of new root
 	while (root->parent != nullptr) {
@@ -246,52 +244,68 @@ void tree_buffer<CharT>::insert (iterator& it, CharT* strdata, int length)
 
 
 template <typename CharT>
-void tree_buffer<CharT>::span_node::insert (iterator& at, CharT* strdata, int length)
+void tree_buffer<CharT>::span_node::insert (const iterator& at, CharT* strdata, int length)
 {
 	auto mnode = at->mnode;
 	
 	// easy case: mnode can handle the data, so insert it
-	if (mnode.capacity >= mnode.size + length) {
+	if (mnode->capacity >= mnode->siz + length) {
 		mnode->insert(at, strdata, length);
 		return;
 	}
 	
 	// harder case: mnode takes as much data as it can, then we insert new mnodes after it
+	offset_type fill = mnode->capacity - mnode->siz;
+	mnode->insert(at, strdata, fill);
 	
+	offset_type extra = length - fill;
+	const int capacity = memory_node::capacity;
+
+	typename child_list::iterator child_it = child_list::s_iterator_to(*mnode);
+	
+	memory_node* last = nullptr;
+	while (extra > 0) {
+		memory_node* m = new memory_node();
+		if (last) {
+			last->next = m;
+		}
+		m->insert(iterator({mnode, 0}), strdata + length - extra, std::min(extra,capacity));
+		children.insert(child_it, *mnode);
+		child_it++;
+		extra -= capacity;
+		last = m;
+	}
 
 }
 
 template <typename CharT>
-void tree_buffer<CharT>::span_node::remove (iterator& from, iterator& to)
-{
-	
-}
-
-template <typename CharT>
-void tree_buffer<CharT>::memory_node::insert (iterator& it, CharT* strdata, int length)
+void tree_buffer<CharT>::memory_node::insert (const iterator& at, CharT* strdata, int length)
 {
 	if (length + this->siz > capacity) {
 		throw std::range_error("mnode.size + length > mnode.capacity");
 	}
-	int backsize = this->siz - it.offset;
+	int backsize = this->siz - at.offset;
 	CharT* tmpbuf = (CharT*)alloca(backsize);
-	std::copy(buf + it.offset, buf + this->siz, tmpbuf);
-	std::copy(strdata, strdata + length, buf + it.offset);
-	std::copy(tmpbuf, tmpbuf + length, buf + it.offset + length);
+	std::copy(buf + at.offset, buf + this->siz, tmpbuf);
+	std::copy(strdata, strdata + length, buf + at.offset);
+	std::copy(tmpbuf, tmpbuf + length, buf + at.offset + length);
 	this->siz += length;
 	
 	// update sibling extents
-	memory_node* o = this->next;
-	while (o && o->parent == this->parent) {
-		o->offset_start += length;
-	}
-
-	// update ancestor extents
 	auto ma = this->parent;
+	if (ma) {
+		auto iter = ma->children.iterator_to(*this);
+		while (iter != ma->children.end()) {
+			iter++;
+			iter->offset_start += length;
+		}
+	}
+	
+	// update ancestor extents
 	while (ma) {
 		auto grandma = ma->parent;
 		ma->offset_end += length;
-
+		
 		if (grandma != nullptr) {
 			auto aunti = span_node::child_list::s_iterator_to(*ma);
 			aunti++;
@@ -307,6 +321,24 @@ void tree_buffer<CharT>::memory_node::insert (iterator& it, CharT* strdata, int 
 	
 }
 
+template <typename CharT>
+void tree_buffer<CharT>::remove (iterator& from, iterator& to)
+{
+
+}
+
+template <typename CharT>
+void tree_buffer<CharT>::span_node::remove (iterator& from, iterator& to)
+{
+	
+}
+
+template <typename CharT>
+void tree_buffer<CharT>::memory_node::remove (iterator& from, iterator& to)
+{
+	
+}
+
 std::ostream& operator<< (std::ostream& os, tree_buffer<char>& b)
 {
 	return os << b.root;
@@ -318,6 +350,51 @@ std::ostream& operator<< (std::ostream& os, tree_buffer<char>::node& n)
 	return n.printTo(os);
 }
 
+template<typename CharT>
+std::ostream& tree_buffer<CharT>::dot (std::ostream& os)
+{
+	os << "digraph { " << endl;
+	root->dot(os);
+	os << "}" << endl;
+	return os << dec;
+}
+
+template<typename CharT>
+std::ostream& tree_buffer<CharT>::span_node::dot (std::ostream& os)
+{
+	
+	os << "span_node" << std::hex <<  ((unsigned long)(this) & 0xffff)  << "[";
+	os << "shape=box, color=grey, ";
+	os << "label=\"" << std::hex << ((unsigned long)(this) & 0xffff) << endl;
+	os << "offset_start=" << std::dec << this->offset_start << ", ";
+	os << "offset_end=" << std::dec << this->offset_end << "\"];" << endl;
+	
+	for (auto& n : children) {
+		n.dot(os);
+	}
+
+	if (this->parent) {
+		os << "span_node" << std::hex << ((unsigned long)(this) & 0xffff)
+			 << " -> span_node" << std::hex << ((unsigned long)(this->parent) & 0xffff) << " ;" << endl;
+	}
+	return os << std::dec;
+}
+
+template<typename CharT>
+std::ostream& tree_buffer<CharT>::memory_node::dot (std::ostream& os)
+{
+	os << "memory_node" << std::hex << ((unsigned long)(this) & 0xffff) << "[";
+	os << "shape=box, ";
+	os << "label=" << "\"" << std::hex << ((unsigned long)(this) & 0xffff) << endl;
+	os << "offset_start=" << std::dec << this->offset_start << endl;
+	os << "size=" << std::dec << this->siz <<"\"];"<< endl;
+
+	if (this->parent) {
+		os << "memory_node" << std::hex << ((unsigned long)(this) & 0xffff)
+			 << " -> span_node" << std::hex << ((unsigned long)(this->parent) & 0xffff) << " ;" << endl;
+	}
+	return os << std::dec;
+}
 
 template<typename CharT>
 std::ostream& tree_buffer<CharT>::span_node::printTo (std::ostream& os)
