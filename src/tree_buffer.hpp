@@ -350,10 +350,14 @@ std::ostream& operator<< (std::ostream& os, tree_buffer<char>::node& n)
 	return n.printTo(os);
 }
 
+#define GRAPHVIZ_ID_MASK 0xffffff
+
 template<typename CharT>
 std::ostream& tree_buffer<CharT>::dot (std::ostream& os)
 {
 	os << "digraph { " << endl;
+	os << "node [ fontname=\"Liberation Sans\" ];" << endl;
+	os << "rankdir=BT;" << endl;
 	root->dot(os);
 	os << "}" << endl;
 	return os << dec;
@@ -363,19 +367,19 @@ template<typename CharT>
 std::ostream& tree_buffer<CharT>::span_node::dot (std::ostream& os)
 {
 	
-	os << "span_node" << std::hex <<  ((unsigned long)(this) & 0xffff)  << "[";
-	os << "shape=box, color=grey, ";
-	os << "label=\"" << std::hex << ((unsigned long)(this) & 0xffff) << endl;
-	os << "offset_start=" << std::dec << this->offset_start << ", ";
-	os << "offset_end=" << std::dec << this->offset_end << "\"];" << endl;
+	os << "span_node" << std::hex <<  ((unsigned long)(this) & GRAPHVIZ_ID_MASK)  << "[";
+	os << "shape=folder, color=grey, ";
+	os << "label=\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
+	os << "start=" << std::dec << this->offset_start << ", ";
+	os << "end=" << std::dec << this->offset_end << "\"];" << endl;
 	
 	for (auto& n : children) {
 		n.dot(os);
 	}
 
 	if (this->parent) {
-		os << "span_node" << std::hex << ((unsigned long)(this) & 0xffff)
-			 << " -> span_node" << std::hex << ((unsigned long)(this->parent) & 0xffff) << " ;" << endl;
+		os << "span_node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
+			 << " -> span_node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK) << " ;" << endl;
 	}
 	return os << std::dec;
 }
@@ -383,15 +387,15 @@ std::ostream& tree_buffer<CharT>::span_node::dot (std::ostream& os)
 template<typename CharT>
 std::ostream& tree_buffer<CharT>::memory_node::dot (std::ostream& os)
 {
-	os << "memory_node" << std::hex << ((unsigned long)(this) & 0xffff) << "[";
-	os << "shape=box, ";
-	os << "label=" << "\"" << std::hex << ((unsigned long)(this) & 0xffff) << endl;
-	os << "offset_start=" << std::dec << this->offset_start << endl;
+	os << "memory_node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << "[";
+	os << "shape=cylinder, ";
+	os << "label=" << "\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
+	os << "start=" << std::dec << this->offset_start << endl;
 	os << "size=" << std::dec << this->siz <<"\"];"<< endl;
 
 	if (this->parent) {
-		os << "memory_node" << std::hex << ((unsigned long)(this) & 0xffff)
-			 << " -> span_node" << std::hex << ((unsigned long)(this->parent) & 0xffff) << " ;" << endl;
+		os << "memory_node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
+			 << " -> span_node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK) << " ;" << endl;
 	}
 	return os << std::dec;
 }
