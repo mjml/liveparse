@@ -3,7 +3,7 @@
 #include <fstream>
 #include <string.h>
 
-#define DEBUG_BUFFER
+#define DEBUG_TREEBUFFER
 
 #include "tree_buffer.hpp"
 

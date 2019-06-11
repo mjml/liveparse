@@ -25,12 +25,10 @@ namespace liveparse
 #define MEMORY_NODE_CAPACITY 4096
 #endif
 
-#ifndef MEMORY_NODE_NUMERATOR_GROWTH
-#define MEMORY_NODE_NUMERATOR_GROWTH 4
-#endif
-
-#ifndef MEMORY_NODE_DENOMINATOR_GROWTH
-#define MEMORY_NODE_DENOMINATOR_GROWTH 3
+#ifdef DEBUG_TREEBUFFER
+#define PROTECTED public
+#else
+#define PROTECTED protected
 #endif
 
 namespace bi = boost::intrusive;
@@ -41,12 +39,8 @@ class tree_buffer
 public:
 	typedef CharT char_type;
 	typedef int   offset_type;
-	
-	#ifdef DEBUG_BUFFER
-public:
-	#else
-protected:
-	#endif
+
+PROTECTED:
 	
 	class node;
 	class memory_node;
@@ -75,12 +69,9 @@ protected:
 	public:
 		friend class tree_buffer<CharT>;
 		typedef node node_t;
+
+	PROTECTED:
 		
-	#ifdef DEBUG_BUFFER
-public:
-	#else
-protected:
-	#endif
 		node() : parent(nullptr), offset_start(0) {}
 		virtual ~node() {  }
 	
@@ -147,12 +138,8 @@ protected:
 		void remove (iterator& from, iterator& to);
 		std::ostream& printTo (std::ostream& os);
 		std::ostream& dot (std::ostream& os);
-		
-#ifdef DEBUG_BUFFER
-	public:
-#else
-	protected:
-#endif
+
+	PROTECTED:
 		
 		static constexpr int metadata_size() {
 			return sizeof(node) + sizeof(memory_node_metadata_s);
@@ -161,7 +148,7 @@ protected:
 		static const int capacity = (MEMORY_NODE_CAPACITY - metadata_size()) / sizeof(CharT);
 		
 		CharT        buf[capacity];
-	
+		
 	};
 	
 public:
@@ -188,12 +175,9 @@ public:
 
 	std::ostream& operator<< (std::ostream& os);
 	std::ostream& dot (std::ostream& os);
+
+PROTECTED:
 	
-#ifdef DEBUG_BUFFER
-	public:
-#else
-	protected:
-#endif
 	node* root;
 
 };
@@ -291,13 +275,14 @@ void tree_buffer<CharT>::memory_node::insert (const iterator& at, CharT* strdata
 	std::copy(tmpbuf, tmpbuf + length, buf + at.offset + length);
 	this->siz += length;
 	
-	// update sibling extents
+	// update sibling extents (uses parent's child list rather than memory_node's next pointers)
 	auto ma = this->parent;
 	if (ma) {
 		auto iter = ma->children.iterator_to(*this);
+		iter++;
 		while (iter != ma->children.end()) {
-			iter++;
 			iter->offset_start += length;
+			iter++;
 		}
 	}
 	
@@ -324,7 +309,25 @@ void tree_buffer<CharT>::memory_node::insert (const iterator& at, CharT* strdata
 template <typename CharT>
 void tree_buffer<CharT>::remove (iterator& from, iterator& to)
 {
+	// easy case: from and to are in the same memory node
+	if (from.node == to.node) {
+		from.node->remove(from,to);
+		return;
+	}
 
+	// more difficult case: from and to are different nodes
+	memory_node* node = from.node;
+	node->remove(from,to);
+	
+	while (node != to.node) {
+		
+		span_node* parent = node->parent;
+		
+		typename span_node::child_list it = parent->children.iterator_to(node);
+		it++;
+		
+		
+	}
 }
 
 template <typename CharT>
@@ -388,7 +391,7 @@ template<typename CharT>
 std::ostream& tree_buffer<CharT>::memory_node::dot (std::ostream& os)
 {
 	os << "memory_node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << "[";
-	os << "shape=cylinder, ";
+	os << "shape=box3d, ";
 	os << "label=" << "\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
 	os << "start=" << std::dec << this->offset_start << endl;
 	os << "size=" << std::dec << this->siz <<"\"];"<< endl;
