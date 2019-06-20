@@ -1,0 +1,3 @@
+[submodule "ext/testmatrix"]
+	path = ext/testmatrix
+	url = http://www.github.com/mjml/testmatrix
