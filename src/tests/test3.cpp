@@ -1,3 +1,8 @@
+/**
+ * @testtype: generator
+ * @include: treebuffer-define-directives
+ **/
+
 #include <cassert>
 #include <iostream>
 #include <fstream>
@@ -29,6 +34,8 @@ int main (int argc, char* argv[])
 	
 	char text_buffer[] = "Test string.";
 
+	cout << "Memory node capacity is: " << li::tree_buffer<char>::memory_node::capacity << endl;
+	
 	(m8b.next = &m8c)->next = &m8d;
 	
 	s8a2.children.push_back(m8b);
@@ -55,7 +62,7 @@ int main (int argc, char* argv[])
 	buf.dot(dot3a);
 	
 	it = s8a.at(5);
-	s8a.insert(it, text_buffer, strlen(text_buffer));
+	buf.insert(it, text_buffer, strlen(text_buffer));
 
 	cout << s8a << endl;
 	buf.dot(dot3b);

@@ -1,3 +1,8 @@
+/**
+ * @testtype: generator
+ * @include: treebuffer-define-directives
+ **/
+
 #include <cassert>
 #include <iostream>
 #include <string.h>
