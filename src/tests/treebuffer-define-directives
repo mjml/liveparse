@@ -1,0 +1,3 @@
+@ccparams: "-g -I.."
+@ldparams: -g
+@define-test-axis MEMORY_NODE_CAPACITY [ 72, 4096 ]
