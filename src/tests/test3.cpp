@@ -1,5 +1,4 @@
 /**
- * @testtype: generator
  * @include: treebuffer-define-directives
  **/
 
