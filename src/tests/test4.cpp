@@ -26,12 +26,13 @@ int main (int argc, char* argv[])
 
 	li::tree_buffer<char> buf;
 	
-	fstream dot3a;
-	fstream dot3b;
-	dot3a.open("./test3a.dot", ios_base::out);
-	dot3b.open("./test3b.dot", ios_base::out);
+	fstream dot4a;
+	fstream dot4b;
+	dot4a.open("./test4a.dot", ios_base::out);
+	dot4b.open("./test4b.dot", ios_base::out);
 	
 	char text_buffer[] = "Test string.";
+	char long_buffer[] = "(This is a particularly long test string). ";
 
 	cout << "Memory node capacity is: " << li::tree_buffer<char>::memory_node::capacity << endl;
 	
@@ -58,19 +59,21 @@ int main (int argc, char* argv[])
 	m8d.insert(it, text_buffer, strlen(text_buffer));
 	
 	cout << s8a << endl;
-	buf.dot(dot3a);
+	cout << "Desired size: " << 3 * strlen(text_buffer) << endl;
+	buf.dot(dot4a);
 	
 	it = s8a.at(5);
-	buf.insert(it, text_buffer, strlen(text_buffer));
+	buf.insert(it, long_buffer, strlen(long_buffer));
 
 	cout << s8a << endl;
-	buf.dot(dot3b);
+	cout << "Desired size: " << 3 * strlen(text_buffer) + strlen(long_buffer) << endl;
+	buf.dot(dot4b);
 
 	s8a.children.clear();
 	s8a2.children.clear();
 
-	dot3a.close();
-	dot3b.close();
+	dot4a.close();
+	dot4b.close();
 	
 	cout << "Success." << endl;
 	exit(0); // avoids memory deallocation errors due to explicit construction of nodes on stack

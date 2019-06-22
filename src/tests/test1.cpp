@@ -1,5 +1,5 @@
 /**
- * @include: treebuffer-define-directives
+ * @include treebuffer-define-directives
  **/
 
 #include <cassert>

@@ -2,12 +2,18 @@ CXXFLAGS=-g -std=c++17
 LDFLAGS=-g
 PROJECT_HOME=../..
 CREATE_TEST_MATRIX=$(PROJECT_HOME)/ext/testmatrix/create_test_matrix.pl6
+TEST_SOURCES=$(shell ls -1 test*.cpp)
 
-@default: Makefile.matrix
-	make -f Makefile.matrix
+@default: @tests
+
+@test: Makefile.matrix $(TEST_SOURCES)
+	make -j -f Makefile.matrix @test
+
+@tests: Makefile.matrix $(TEST_SOURCES)
+	make -j -f Makefile.matrix @tests
 
 Makefile.matrix:
-	$(CREATE_TEST_MATRIX)
+	$(CREATE_TEST_MATRIX) > Makefile.matrix
 
 %: %.cpp ../tree_buffer.hpp
 	$(CXX) $(CXXFLAGS) -I.. $(LDFLAGS) -o $@ $<
@@ -15,5 +21,9 @@ Makefile.matrix:
 %.svg: %.dot
 	dot -Tsvg $< > $@
 
-clean:
-	$(RM) -rf test? *.svg *.dot
+@clean:
+	$(RM) -rf *.svg *.dot
+	$(RM) -rf *.obj *.o
+	make -f Makefile.matrix @clean
+	$(RM) -rf Makefile.matrix
+
