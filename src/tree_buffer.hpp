@@ -461,7 +461,7 @@ template <typename CharT>
 void tree_buffer<CharT>::memory_node::insert (const iterator& at, const CharT* strdata, int length)
 {
 	if (length + this->siz > capacity) {
-		throw new std::domain_error("The preconditions of memory_node::insert require that the data fit entirely into the node");
+		throw std::runtime_error("The preconditions of memory_node::insert require that the data fit entirely into the node");
 	}
 	
 	raw_insert(at,strdata,length,nullptr,nullptr);
