@@ -64,7 +64,11 @@ PROTECTED:
 		iterator operator->() { return this; }
 		
 	};
-	
+
+	class node_disposer {
+	public:
+		void operator()(node* p) { delete p; }
+	};
 	
 	/** 
 	 * Basic node for the buffer-tree structure.
@@ -78,7 +82,7 @@ PROTECTED:
 	PROTECTED:
 		node() : parent(nullptr), offset_start(0) {}
 		node(span_node* p) : parent(p), offset_start(0) {}
-		virtual ~node() {  }
+		virtual ~node() { }
 	
 		virtual iterator at (int pos) = 0;
 		virtual offset_type size() = 0;
@@ -117,7 +121,7 @@ PROTECTED:
 		
 		span_node() : node(), offset_end() {}
 		span_node(span_node* p) : node(p), offset_end() {}
-		virtual ~span_node() { children.clear(); }
+		virtual ~span_node() { children.clear_and_dispose(node_disposer());  }
 		
 		int get_num_children() { return children.size(); }
 		iterator at (int pos);
@@ -267,11 +271,11 @@ void tree_buffer<CharT>::span_node::insert (const iterator& at, const CharT* str
 	assert(from->parent == this);
 
 	// FIXME: unresolved edge case where buffer is newly created and doesn't have memory_nodes or span_nodes yet
-
+	
 	// Determine how many characters we can fit into the memory_node pointed to by 'at'.
 	int carry_length = from->siz - at->offset;
 	CharT* carry_data = (CharT*) alloca(sizeof(CharT) * carry_length);
-	int first_segment_length = capacity - at->offset;
+	int first_segment_length = std::min(length,capacity - at->offset);
 	int second_segment_length = length - first_segment_length;
 	int remaining = second_segment_length;
 	
@@ -280,10 +284,10 @@ void tree_buffer<CharT>::span_node::insert (const iterator& at, const CharT* str
 	
 	// Treat the remainder of strdata using a new pointer, 'data', with 'remaining_length'.
 	const CharT* data = strdata + first_segment_length;
-	memory_node *last = from,	*to = from->next, *m = nullptr;
-	bool same_parent = to->parent == from->parent;
+	memory_node *last = from,	*to = from->next, *m = from;
+	bool same_parent = to && (to->parent == from->parent);
 	
-	if (to->siz + carry_length <= capacity) {
+	if (to && (to->siz + carry_length <= capacity)) {
 		// insert the carry data into the to node
 		to->insert(iterator{to,0}, carry_data, carry_length);
 		carry_length = 0;
@@ -423,20 +427,19 @@ void tree_buffer<CharT>::memory_node::raw_insert (const iterator& at, const Char
 {
 	// The second half of the existing text might need to be bumped out and saved (carried).
 	int bumped = this->siz - at.offset;
-	if (bumped > 0 && carry_data == nullptr) {
-		carry_data = (CharT*)alloca(sizeof(CharT) * bumped);
-	}
-	
-	if (bumped) {
+	if (bumped > 0) {
+		if (carry_data == nullptr) {
+			carry_data = (CharT*)alloca(sizeof(CharT) * bumped);
+		}
 		std::copy(buf + at.offset, buf + this->siz, carry_data);
 	}
-
+	
 	// This is the most characters that we can fit in this node.
 	int effective_length = std::min(length, capacity - at.offset);
 	std::copy(strdata, strdata + effective_length, buf + at.offset);
 
 	// If there was carried text, some of it might still fit
-	if (bumped) {
+	if (bumped > 0) {
 		
 		// This is the amount of space that remains
 		offset_type remainder = capacity - (at.offset + effective_length);
@@ -463,7 +466,7 @@ void tree_buffer<CharT>::memory_node::insert (const iterator& at, const CharT* s
 	if (length + this->siz > capacity) {
 		throw std::runtime_error("The preconditions of memory_node::insert require that the data fit entirely into the node");
 	}
-	
+
 	raw_insert(at,strdata,length,nullptr,nullptr);
 	
 	// update forward sibling extents (uses parent's child list rather than memory_node's next pointers)
@@ -623,9 +626,9 @@ std::ostream& tree_buffer<CharT>::span_node::printTo (std::ostream& os)
 template<typename CharT>
 std::ostream& tree_buffer<CharT>::memory_node::printTo (std::ostream& os)
 {
-	os << "--";
+	os << "--" << this->siz;
 	for (int i=0; i < this->siz; i++) {
-		os << this->buf[i];
+		os << (char)(this->buf[i]);
 	}
 	return os;
 }
