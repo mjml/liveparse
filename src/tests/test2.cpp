@@ -15,57 +15,66 @@ using namespace std;
 
 int main (int argc, char* argv[])
 {
-
-	li::tree_buffer<char>::memory_node m8b;
-	li::tree_buffer<char>::memory_node m8c;
-	li::tree_buffer<char>::memory_node m8d;
-	li::tree_buffer<char>::span_node s8a;
-	li::tree_buffer<char>::span_node s8a2;
-	li::tree_buffer<char>::span_node s8a3;
-
-	char text_buffer[] = "Test string.";
+	auto m8b = new li::tree_buffer<char>::memory_node;
+	auto m8c = new li::tree_buffer<char>::memory_node;
+	auto m8d = new li::tree_buffer<char>::memory_node;
+	auto s8a = new li::tree_buffer<char>::span_node;
+	auto s8a2 = new li::tree_buffer<char>::span_node;
+	auto s8a3 = new li::tree_buffer<char>::span_node;
 	
+	try {
 
+		char text_buffer[] = "Test string.";
 	
-	s8a2.children.push_back(m8b);
-	s8a2.children.push_back(m8c);
-	s8a2.children.push_back(m8d);
-	m8b.parent = m8c.parent = m8d.parent = &s8a2;
+		s8a2->children.push_back(*m8b);
+		s8a2->children.push_back(*m8c);
+		s8a2->children.push_back(*m8d);
+		m8b->parent = m8c->parent = m8d->parent = s8a2;
 
-	s8a.children.push_back(s8a2);
-	s8a.children.push_back(s8a3);
-	s8a2.parent = s8a3.parent = &s8a;
+		m8b->next = m8c;
+		m8c->next = m8d;
+		
+		s8a->children.push_back(*s8a2);
+		s8a->children.push_back(*s8a3);
+		s8a2->parent = s8a3->parent = s8a;
 
-	auto it = m8b.at(0);
-	m8b.insert(it, text_buffer, strlen(text_buffer));
+		auto it = m8b->at(0);
+		m8b->insert(it, text_buffer, strlen(text_buffer));
 
-	it = m8c.at(0);
-	m8c.insert(it, text_buffer, strlen(text_buffer));
+		it = m8c->at(0);
+		m8c->insert(it, text_buffer, strlen(text_buffer));
 
-	it = m8d.at(0);
-	m8d.insert(it, text_buffer, strlen(text_buffer));
+		it = m8d->at(0);
+		m8d->insert(it, text_buffer, strlen(text_buffer));
+		
+		cout << "The buffer contains: " << endl;
+		cout << *s8a << endl;
 	
-	cout << "The buffer contains: " << endl;
-	cout << s8a << endl;
+		cout << "s8a: " << "[ " << s8a->offset_start << ", " << s8a->offset_end << " ]" << endl;
+		cout << "s8a2: " << "[ " << s8a2->offset_start << ", " << s8a2->offset_end << " ]" << endl;
+		cout << "s8a3: " << "[ " << s8a3->offset_start << ", " << s8a3->offset_end << " ]" << endl;
 	
-	cout << "s8a: " << "[ " << s8a.offset_start << ", " << s8a.offset_end << " ]" << endl;
-	cout << "s8a2: " << "[ " << s8a2.offset_start << ", " << s8a2.offset_end << " ]" << endl;
-	cout << "s8a3: " << "[ " << s8a3.offset_start << ", " << s8a3.offset_end << " ]" << endl;
-	
-	it = m8b.at(5);
-	m8b.insert(it, text_buffer, strlen(text_buffer));
+		it = m8b->at(5);
+		s8a2->insert(it, text_buffer, strlen(text_buffer));
 
-	cout << "After re-insert, the buffer contains: " << endl;
-	cout << s8a << endl;
+		cout << "After re-insert, the buffer contains: " << endl;
+		cout << *s8a << endl;
 
-	cout << "s8a: " << "[ " << s8a.offset_start << ", " << s8a.offset_end << " ]" << endl;
-	cout << "s8a2: " << "[ " << s8a2.offset_start << ", " << s8a2.offset_end << " ]" << endl;
-	cout << "s8a3: " << "[ " << s8a3.offset_start << ", " << s8a3.offset_end << " ]" << endl;
+		cout << "s8a: " << "[ " << s8a->offset_start << ", " << s8a->offset_end << " ]" << endl;
+		cout << "s8a2: " << "[ " << s8a2->offset_start << ", " << s8a2->offset_end << " ]" << endl;
+		cout << "s8a3: " << "[ " << s8a3->offset_start << ", " << s8a3->offset_end << " ]" << endl;
 
-	s8a.children.clear();
-	s8a2.children.clear();
-	
-	cout << "Success." << endl;
+		delete s8a;
+		
+		cout << "*** Success ***" << endl << flush;
+
+	} catch (const std::exception& e) {
+		cout << "Got here." << e.what() <<  endl << flush;
+		return 1;
+	} catch (...) {
+		cout << "Got here.2" << endl << flush;
+		return 1;
+	}
 		
 	return 0;
 }
