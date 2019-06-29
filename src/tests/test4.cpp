@@ -2,6 +2,14 @@
  * @include treebuffer-define-directives
  **/
 
+/**
+ * This whitebox test uses the insert methods called on individual memory_node objects.
+ * It also contains some code for rendering pretty .dot files.
+ * 
+ * - memory_node::insert
+ * - memory_node::insert_raw
+ */
+
 #include <cassert>
 #include <iostream>
 #include <fstream>
@@ -23,7 +31,7 @@ int main (int argc, char* argv[])
 	li::tree_buffer<char>::span_node s8a;
 	li::tree_buffer<char>::span_node s8a2;
 	li::tree_buffer<char>::span_node s8a3;
-
+	
 	li::tree_buffer<char> buf;
 	
 	fstream dot4a;
@@ -42,16 +50,16 @@ int main (int argc, char* argv[])
 	s8a2.children.push_back(m8c);
 	s8a2.children.push_back(m8d);
 	m8b.parent = m8c.parent = m8d.parent = &s8a2;
-
+	
 	s8a.children.push_back(s8a2);
 	s8a.children.push_back(s8a3);
 	s8a2.parent = s8a3.parent = &s8a;
-
+	
 	buf.root = &s8a;
 	
 	auto it = m8b.at(0);
 	m8b.insert(it, text_buffer, strlen(text_buffer));
-
+	
 	it = m8c.at(0);
 	m8c.insert(it, text_buffer, strlen(text_buffer));
 
@@ -61,6 +69,7 @@ int main (int argc, char* argv[])
 	cout << s8a << endl;
 	cout << "Desired size: " << 3 * strlen(text_buffer) << endl;
 	buf.dot(dot4a);
+	dot4a.close();
 	
 	it = s8a.at(5);
 	buf.insert(it, long_buffer, strlen(long_buffer));
@@ -72,7 +81,6 @@ int main (int argc, char* argv[])
 	s8a.children.clear();
 	s8a2.children.clear();
 
-	dot4a.close();
 	dot4b.close();
 	
 	cout << "Success." << endl;

@@ -1,7 +1,7 @@
 /**
  * @cxxparams "-g -I.."
  * @ldparams -g
- * @define MEMORY_NODE_CAPACITY 4096
+ * @define MEMORY_NODE_SIZE 4096
  **/
 
 #include <cassert>
@@ -17,21 +17,26 @@ using namespace std;
 
 int main (int argc, char* argv[])
 {
+	li::tree_buffer<char> tree;
+	auto *s = new li::tree_buffer<char>::span_node;
+	auto *m = new li::tree_buffer<char>::memory_node;
 
-	li::tree_buffer<char>::memory_node m8a;
-
+	tree.root = s;
+	s->children.push_back(*m);
+	m->parent = s;
+	
 	char text_buffer[] = "Test string.";
 	
-	
-	auto it = m8a.at(0);
-	m8a.insert(it, text_buffer, strlen(text_buffer));
-	m8a.insert(it, text_buffer, strlen(text_buffer));
-	m8a.insert(it, text_buffer, strlen(text_buffer));
+	auto it = m->at(0);
+	m->insert(it, text_buffer, strlen(text_buffer));
+	m->insert(it, text_buffer, strlen(text_buffer));
+	m->insert(it, text_buffer, strlen(text_buffer));
 
-	it = m8a.at(5);
-	m8a.insert(it, text_buffer, strlen(text_buffer));
+	it = m->at(5);
+	m->insert(it, text_buffer, strlen(text_buffer));
 
-	cout << m8a << endl << flush;
+	m->printTo(cout);
+	cout << endl << flush;
 
 	cout << "Success." << endl;
 		
