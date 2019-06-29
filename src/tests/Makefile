@@ -8,10 +8,10 @@ PERL6=perl6
 @default: @tests
 
 @test: Makefile.matrix $(TEST_SOURCES)
-	make -j -f Makefile.matrix @test
+	make -f Makefile.matrix @test
 
 @tests: Makefile.matrix $(TEST_SOURCES)
-	make -j -f Makefile.matrix @tests
+	make -f Makefile.matrix @tests
 
 Makefile.matrix: Makefile
 	$(PERL6) -I $(PROJECT_HOME)/ext/testmatrix  $(CREATE_TEST_MATRIX) > Makefile.matrix
