@@ -1,5 +1,5 @@
 /**
- * @cxxparams "-g -I.."
+ * @cxxparams "-g -I.. -std=c++17"
  * @ldparams -g
  * @define MEMORY_NODE_SIZE 4096
  **/
@@ -12,14 +12,15 @@
 
 #include "tree_buffer.hpp"
 
-namespace li = liveparse;
 using namespace std;
+using namespace treebuffer;
+using namespace treebuffer::detail;
 
 int main (int argc, char* argv[])
 {
-	li::tree_buffer<char> tree;
-	auto *s = new li::tree_buffer<char>::span_node;
-	auto *m = new li::tree_buffer<char>::memory_node;
+	tree_buffer<char> tree;
+	auto *s = new span_node<char>;
+	auto *m = new memory_node<char>;
 
 	tree.root = s;
 	s->children.push_back(*m);

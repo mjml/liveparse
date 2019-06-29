@@ -10,22 +10,23 @@
 
 #include "tree_buffer.hpp"
 
-namespace li = liveparse;
+using namespace treebuffer;
+using namespace treebuffer::detail;
 using namespace std;
 
 int main (int argc, char* argv[])
 {
-	auto m8b = new li::tree_buffer<char>::memory_node;
-	auto m8c = new li::tree_buffer<char>::memory_node;
-	auto m8d = new li::tree_buffer<char>::memory_node;
-	auto s8a = new li::tree_buffer<char>::span_node;
-	auto s8a2 = new li::tree_buffer<char>::span_node;
-	auto s8a3 = new li::tree_buffer<char>::span_node;
+	auto m8b = new memory_node<char>;
+	auto m8c = new memory_node<char>;
+	auto m8d = new memory_node<char>;
+	auto s8a = new span_node<char>;
+	auto s8a2 = new span_node<char>;
+	auto s8a3 = new span_node<char>;
 	
 	try {
 
 		char text_buffer[] = "Test string.";
-	
+		
 		s8a2->children.push_back(*m8b);
 		s8a2->children.push_back(*m8c);
 		s8a2->children.push_back(*m8d);

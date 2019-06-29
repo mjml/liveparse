@@ -1,3 +1,3 @@
-@cxxparams "-g -I.."
+@cxxparams "-g -I.. -std=c++17"
 @ldparams -g
 @define MEMORY_NODE_CAPACITY [ 72, 4096 ]
