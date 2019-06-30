@@ -25,7 +25,11 @@ class memory_node;
 template<typename T>
 class node_disposer {
 public:
-	void operator()(node<T>* p) { delete p; }
+	void operator()(node<T>* p) {
+		std::cout << p << std::endl << std::flush;
+		delete p;
+
+	}
 };
 
 namespace bi = boost::intrusive;
@@ -48,6 +52,7 @@ public:
 	virtual std::ostream& dot (std::ostream& os) const = 0;
 	virtual int insert (const iterator<T>& it, const T* strdata, int length) = 0;
 	virtual int append (const T* strdata, int length) = 0;
+	virtual void remove (int from, int to) = 0;
 	virtual void fixup_siblings_extents () {
 		if (parent == nullptr) return;
 		int ofs = offset_start + size();
@@ -240,7 +245,7 @@ int span_node<T>::insert (const iterator<T>& at, const T* strdata, int length)
 		last->next = m;
 		last = m;
 	}
-
+	
 	// if there's still carry data:
 	if (carry_length > 0) {
 		if (carry_length + m->siz <= capacity) { // put in last node
@@ -258,6 +263,7 @@ int span_node<T>::insert (const iterator<T>& at, const T* strdata, int length)
 			last = m;
 		}
 	}
+	last->next = to;
 	
 	m->fixup_siblings_extents();
 	
@@ -435,18 +441,19 @@ void span_node<T>::remove (int from, int to)
 	}
 	
 	// more general case
-	auto it = children.cbegin();
-	while (it != children.cend()) {
+	auto it = children.begin();
+	while (it != children.end()) {
+		node<T>& n = *it;
 		int a = it->offset_start;
 		int b = a + it->size();
 		int c = from;
 		int d = to;
     if (overlaps(a,b,c,d)) {
-			it->remove(c-a,d-a);
-			if (it->size() == 0) {
-				it = children.erase(it);
+			n.remove(c-a,d-a);
+			if (n.size() == 0) {
+				typename span_node<T>::child_list::const_iterator cit = children.iterator_to(n);
+				children.erase(cit);
 				// memory_node->next pointers need to be updated --- AHH single-linked list pains --- might need a doubly linked list among leaves
-				continue;
 			} 
 		}
 		it++;
@@ -468,12 +475,16 @@ template <typename T>
 void span_node<T>::rebalance_after_remove ()
 {
 	// check for zero-length children and remove them
-	for (auto &it: children) {
+	auto it = children.cbegin();
+	while (it != children.cend()) {
 		if (it->size() == 0) {
-			children.erase_and_dispose(it, node_disposer<T>());
+			it = children.erase_and_dispose(it, node_disposer<T>());
+		} else {
+			it++;
 		}
 	}
 	// todo: check for redundant ancestor chains and remove them
+	// todo: other rebalance work?
 }
 
 template <typename T>
@@ -481,7 +492,8 @@ void span_node<T>::fixup_my_extents ()
 {
 	int offset_end = this->offset_start;
 	for (auto &it : children) {
-		offset_end += it.size();
+		node<T>& n = it;
+		offset_end += n.size();
 	}
 	this->offset_end = offset_end;
 }
@@ -498,6 +510,7 @@ template <typename T>
 void span_node<T>::fixup_ancestors_extents ()
 {
 	span_node<T>* ma = this;
+	ma->fixup_my_extents();
 	while (ma) {
 		span_node<T>* grandma = ma->parent;
 		if (grandma != nullptr) {

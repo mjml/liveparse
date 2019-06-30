@@ -58,16 +58,16 @@ public:
 	
 	int size () const;
 	void clear ();
-	void insert (int pos, T* strdata, int length);
-	void insert (const iterator<T>& it, T* strdata, int length);
+	void insert (int pos, const T* strdata, int length);
+	void insert (const iterator<T>& it, const T* strdata, int length);
 	void append (const T* strdata, int length);
 	void remove (int from, int to);
 	void remove (iterator<T>& from, iterator<T>& to);
-
+	
 	std::ostream& dot (std::ostream& os) const;
 	
 	friend std::ostream& operator<<<> (std::ostream& os, tree_buffer<T>& tree);
-
+	
 PROTECTED:
 	span_node<T>* root;
 	

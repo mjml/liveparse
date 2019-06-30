@@ -46,7 +46,7 @@ iterator<T> tree_buffer<T>::at (int pos)
 
 
 template <typename T>
-void tree_buffer<T>::insert (int pos, T* strdata, int length)
+void tree_buffer<T>::insert (int pos, const T* strdata, int length)
 {
 	if (root == nullptr) {
 		root = new span_node<T>();
@@ -59,7 +59,7 @@ void tree_buffer<T>::insert (int pos, T* strdata, int length)
 
 
 template <typename T>
-void tree_buffer<T>::insert (const iterator<T>& at, T* strdata, int length)
+void tree_buffer<T>::insert (const iterator<T>& at, const T* strdata, int length)
 {
 	if (iterator<T>::is_end(at)) {
 		root->append(strdata,length);
