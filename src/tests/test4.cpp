@@ -14,6 +14,7 @@
 #include <iostream>
 #include <fstream>
 #include <string.h>
+#include "testmatrix.h"
 
 #define DEBUG_TREEBUFFER
 
@@ -61,12 +62,25 @@ int main (int argc, char* argv[])
 	
 	auto it = m8b->at(0);
 	m8b->insert(it, text_buffer, strlen(text_buffer));
+	test_assert(m8b->offset_start == 0);
+	test_assert(m8b->size() == 12);
 	
 	it = m8c->at(0);
 	m8c->insert(it, text_buffer, strlen(text_buffer));
+	test_assert(m8c->offset_start == 12);
+	test_assert(m8c->size() == 12);
 
 	it = m8d->at(0);
 	m8d->insert(it, text_buffer, strlen(text_buffer));
+	test_assert(m8d->offset_start == 24);
+	test_assert(m8d->size() == 12);
+
+	test_assert(s8a2->offset_start == 0);
+	test_assert(s8a2->size() == 36);
+	test_assert(s8a3->offset_start == 36);
+	test_assert(s8a3->size() == 0);
+	test_assert(s8a->offset_start == 0);
+	test_assert(s8a->size() == 36);
 	
 	cout << *s8a << endl;
 	cout << "Desired size: " << 3 * strlen(text_buffer) << endl;
@@ -75,6 +89,20 @@ int main (int argc, char* argv[])
 	
 	it = s8a->at(5);
 	buf.insert(it, long_buffer, strlen(long_buffer));
+
+	test_assert(m8b->offset_start == 0);
+	test_assert(m8b->next != m8c);
+	test_assert(m8c->offset_start == 55);
+	test_assert(m8c->size() == 12);
+	test_assert(m8d->offset_start == 67);
+	test_assert(m8d->size() == 12);
+	
+	test_assert(s8a2->offset_start == 0);
+	test_assert(s8a2->size() == 48);
+	test_assert(s8a3->offset_start == 79);
+	test_assert(s8a3->size() == 0);
+	test_assert(s8a->offset_start == 0);
+	test_assert(s8a->size() == 79);
 	
 	cout << *s8a << endl;
 	cout << "Desired size: " << 3 * strlen(text_buffer) + strlen(long_buffer) << endl;
@@ -82,6 +110,8 @@ int main (int argc, char* argv[])
 	
 	s8a->children.clear();
 	s8a2->children.clear();
+
+	test_assert(s8a->size() == 79);
 	
 	dot4b.close();
 	

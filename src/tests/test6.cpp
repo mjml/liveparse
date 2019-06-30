@@ -1,26 +1,33 @@
 /** 
  * @include treebuffer-define-directives
- * @define STR_SIZE [ 1024, 5000 ]
+ * @define STR_SIZE [ 100 ]
  **/
 
 #include <iostream>
 #include <vector>
 #include <string.h>
-
+#include <sstream>
+#include "testmatrix.h"
 #include "tree_buffer.hpp"
 
 using namespace std;
 using namespace treebuffer;
+using namespace treebuffer::detail;
 
-int main (int argc, char* argv[]) try {
+bool compare (const std::string& truth, tree_buffer<char>& tb);
 
-	std::string truth;
+int main (int argc, char* argv[]) {
+	
+	string truth;
 	tree_buffer<char> tb;
-
-	std::string s("This is a very long string.");
+	
+	string s("This is a very long string.");
 	int n = s.size();
 	
-	// Create initial string for both structures
+	
+	/**
+	 * Step one: populate truth and tb with the same characters and test if they are equal.
+	 */
 	for (int i=0; i < STR_SIZE; i++) {
 		truth += s[i % n];
 	}
@@ -28,10 +35,54 @@ int main (int argc, char* argv[]) try {
 		tb.append(&s[i % n], 1);
 	}
 
-	cout << tb;
-
-	return 0;
+	compare(truth,tb);
+		
+	/**
+	 * Step two: perform a sequence of removes and test equality at each step.
+	 */
+	tb.remove(5,12);
+	truth.erase(5,12-5);
+	compare(truth,tb);
 	
-} catch (exception& e) {
-	cerr << "err: " << e.what() << endl << flush;
+	
+	/**
+	 * Step three: perform a sequence of remove-insert steps at varying positions and lengths, comparing equality at each step.
+	 */
+	
+	
+	
+	/**
+	 * Step four: perform a few nonsense operations on tb to ensure that it either noops or throws appropriately.
+	 */
+	// nonsense case, but noopable
+	tb.remove(1,1);
+	truth.erase(1,0);
+	compare(truth,tb);
+	
+	// nonsense case, borderline	
+	tb.remove(30,25);
+	
+	// nonsense case, should throw range error
+	bool throw_exception_for_bad_insert = false;
+	try {
+		tb.insert(1000000,"This should throw",17);     
+	} catch (const exception& e) {
+		throw_exception_for_bad_insert = true;
+	}
+	test_assert(throw_exception_for_bad_insert == true);
+	
+}
+
+
+bool compare (const std::string& truth, tree_buffer<char>& tb) {
+	stringstream ss;
+	ss << tb;
+	bool b = ss.str() == truth;
+	test_assert(ss.str() == truth);
+	if (!b) {
+		std::cout << ss.str() << std::endl;
+		std::cout << "[" << ss.str().size() << "]--- compared to ---[" << truth.size() << "]" << std::endl;
+		std::cout << truth << endl << flush;
+	}
+	return b;
 }
