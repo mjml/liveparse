@@ -1,12 +1,13 @@
 /** 
  * @include treebuffer-define-directives
- * @define STR_SIZE [ 100 ]
+ * @define STR_SIZE [ 300 ]
  **/
 
 #include <iostream>
 #include <vector>
 #include <string.h>
 #include <sstream>
+#include <fstream>
 #include "testmatrix.h"
 #include "tree_buffer.hpp"
 
@@ -36,15 +37,20 @@ int main (int argc, char* argv[]) {
 	}
 
 	compare(truth,tb);
-		
+	fstream dot6a;
+	dot6a.open("./test6a.dot", ios_base::out);
+  tb.dot(dot6a);
+	dot6a.close();
+	
+	
 	/**
 	 * Step two: perform a sequence of removes and test equality at each step.
 	 */
 	tb.remove(5,12);
 	truth.erase(5,12-5);
 	compare(truth,tb);
-	
-	
+
+
 	/**
 	 * Step three: perform a sequence of remove-insert steps at varying positions and lengths, comparing equality at each step.
 	 */
@@ -58,15 +64,23 @@ int main (int argc, char* argv[]) {
 	tb.remove(1,1);
 	truth.erase(1,0);
 	compare(truth,tb);
-	
-	// nonsense case, borderline	
-	tb.remove(30,25);
+
+	// nonsense case, borderline
+	bool throw_exception_for_bad_remove = false;
+	try {
+		tb.remove(30,25); // this throws
+		//truth.erase(30,-5); // std::string actually deletes everything forward from 30 here.
+		compare(truth,tb);
+	} catch (const std::exception& e) {
+		throw_exception_for_bad_remove = true;
+	} 
+	test_assert(throw_exception_for_bad_remove == true);
 	
 	// nonsense case, should throw range error
 	bool throw_exception_for_bad_insert = false;
 	try {
 		tb.insert(1000000,"This should throw",17);     
-	} catch (const exception& e) {
+	} catch (const std::exception& e) {
 		throw_exception_for_bad_insert = true;
 	}
 	test_assert(throw_exception_for_bad_insert == true);

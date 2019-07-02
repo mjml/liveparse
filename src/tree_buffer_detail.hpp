@@ -26,7 +26,7 @@ template<typename T>
 class node_disposer {
 public:
 	void operator()(node<T>* p) {
-		std::cout << p << std::endl << std::flush;
+		//std::cout << p << std::endl << std::flush;
 		delete p;
 
 	}
@@ -52,17 +52,8 @@ public:
 	virtual std::ostream& dot (std::ostream& os) const = 0;
 	virtual int insert (const iterator<T>& it, const T* strdata, int length) = 0;
 	virtual int append (const T* strdata, int length) = 0;
-	virtual void remove (int from, int to) = 0;
-	virtual void fixup_siblings_extents () {
-		if (parent == nullptr) return;
-		int ofs = offset_start + size();
-		for (auto &it = ++parent->children.iterator_to(*this); it != parent->children.end(); it++) {
-			int saved_size = it->size();
-			it->offset_start = ofs;
-			it->set_size(saved_size);
-			ofs += saved_size;
-		}
-	}
+	virtual void remove (int from, int to, memory_node<T>** from_n, memory_node<T>** to_n) = 0;
+	virtual void fixup_siblings_extents ();
 	
 	span_node<T>* parent;
 	offset_type offset_start;
@@ -92,17 +83,18 @@ public:
 	void set_size (offset_type ofs) { offset_end = node<T>::offset_start + ofs; }
 	int insert (const iterator<T>& it, const T* strdata, int length);
 	int append (const T* strdata, int length);
-	void remove (int from, int to);
+	void remove (int from, int to, memory_node<T>** from_n, memory_node<T>** to_n);
 	std::ostream& printTo (std::ostream& os) const;
 	std::ostream& dot (std::ostream& os) const;
-
+	
 	void fixup_my_extents ();
 	void fixup_child_extents ();
 	void fixup_ancestors_extents ();
 		
-	void rebalance_after_insert ();
-	void rebalance_after_remove ();
-
+	void rebalance_after_insert (bool full_height);
+	static void rebalance_after_remove (span_node<T>* from, span_node<T>* to, span_node<T>** subroot);
+	static void rebalance_upward (span_node<T>* node);
+	
 	child_list  children;
 	offset_type offset_end;
 		
@@ -145,7 +137,7 @@ public:
 	void set_size (offset_type ofs) { this->siz = ofs; }
 	int insert (const iterator<T>& it, const T* strdata, int length);
 	int append (const T* strdata, int length);
-	void remove (int from, int to);
+	void remove (int from, int to, memory_node<T>** from_n, memory_node<T>** to_n);
 	std::ostream& printTo (std::ostream& os) const;
 	std::ostream& dot (std::ostream& os) const;
  		
@@ -271,7 +263,7 @@ int span_node<T>::insert (const iterator<T>& at, const T* strdata, int length)
 	fixup_ancestors_extents();
 	
 	// rebalance the tree
-	this->rebalance_after_insert();
+	this->rebalance_after_insert(false);
 
 	return length;	
 }
@@ -315,6 +307,7 @@ int memory_node<T>::append (const T* strdata, int length)
 {
 	span_node<T>* parent = this->parent;
 	memory_node<T>* m = this;
+	memory_node<T>* next = this->next;
 
 	int r = raw_append(strdata,length);
 	length -= r;
@@ -330,8 +323,10 @@ int memory_node<T>::append (const T* strdata, int length)
 		strdata += r;
 		m = sib;
 	}
-	
-	parent->rebalance_after_insert();
+	m->next = next;
+	this->fixup_siblings_extents();
+	parent->rebalance_after_insert(false);
+	parent->fixup_ancestors_extents();
 	
 	return r;
 }
@@ -339,54 +334,59 @@ int memory_node<T>::append (const T* strdata, int length)
 
 
 template <typename T>
-void span_node<T>::rebalance_after_insert ()
+void span_node<T>::rebalance_after_insert (bool full_height)
 {
-	if (this->children.size() <= SPAN_NODE_FANOUT) return;
-
-	int c = SPAN_NODE_FANOUT;
-	int nc = this->children.size();
+	if (this->children.size() > SPAN_NODE_FANOUT) {
 	
-	if (this->parent == nullptr) {
-		// special case: root pivot
-		span_node<T>* new_root = new span_node<T>;
-		this->parent = new_root;
-		new_root->children.push_back(*this);
-	}
-	
-	int movn = this->children.size() % SPAN_NODE_FANOUT;
-	if (movn == 0) movn += SPAN_NODE_FANOUT;
-	
-	// add new siblings to the current span_node, then transfer children to those siblings
-	while (children.size() > SPAN_NODE_FANOUT) {
-
-		span_node<T>* sib = new span_node<T>(this->parent);
-		auto it = ++(this->parent->children.iterator_to(*this));
-		this->parent->children.insert(it, *sib);
-		int sz = 0;
-
-		// pop_back some children and push_front them onto the new sibling
-		for (int i=0; i < movn; i++) {
-			auto &last = children.back();
-			children.pop_back();
-			sz += last.size();
-			sib->children.push_front(last);
-			last.parent = sib;
+		int c = SPAN_NODE_FANOUT;
+		int nc = this->children.size();
+		
+		if (this->parent == nullptr) {
+			// special case: root pivot
+			span_node<T>* new_root = new span_node<T>;
+			this->parent = new_root;
+			new_root->children.push_back(*this);
 		}
-		offset_end -= sz;
-		sib->set_size(sz);
 		
-		// fixup offset_start and size in new sibling's children
-		sib->fixup_child_extents();		
+		int movn = (this->children.size() < 6) ? 2 : c;
 		
-		movn = SPAN_NODE_FANOUT;
+		// add new siblings to the current span_node, then transfer children to those siblings
+		while (children.size() > c) {
 		
+			span_node<T>* sib = new span_node<T>(this->parent);
+			auto it = ++(this->parent->children.iterator_to(*this));
+			this->parent->children.insert(it, *sib);
+			int sz;
+			sz = 0;
+			
+			// pop_back some children (at least 2) and push_front them onto the new sibling
+			for (int i=0; i < movn; i++) {
+				auto &last = children.back();
+				children.pop_back();
+				sz += last.size();
+				sib->children.push_front(last);
+				last.parent = sib;
+			}
+			offset_end -= sz;
+			sib->set_size(sz);
+			
+			// fixup offset_start and size in new sibling's children
+			sib->fixup_child_extents();		
+			
+			movn = (this->children.size() < 6) ? 2 : c;
+		}
+		
+		// fixup offset_start in all created siblings
+		this->fixup_siblings_extents();
+		
+	} else if (!full_height) {
+		return; // end the recursion if we're not doing the full height
 	}
-	
-	// fixup offset_start in all created siblings
-	this->fixup_siblings_extents();
 	
 	// now there may be too many siblings, so rebalance up the tree
-	this->parent->rebalance_after_insert();
+	if (this->parent != nullptr) {
+		this->parent->rebalance_after_insert(full_height);
+	}
 	
 }
 
@@ -433,7 +433,7 @@ int memory_node<T>::raw_insert (const iterator<T>& at, const T* strdata, int len
 
 
 template <typename T>
-void span_node<T>::remove (int from, int to)
+void span_node<T>::remove (int from, int to, memory_node<T>** from_n, memory_node<T>** to_n)
 {
 	// fast case: [from,to) spans this entire node, so remove all children
 	if (from <= this->offset_start && to >= this->offset_end) {
@@ -442,28 +442,39 @@ void span_node<T>::remove (int from, int to)
 	
 	// more general case
 	auto it = children.begin();
+	auto from_it = children.end();
+	auto to_it = children.end();
+	bool in_overlap = false;
 	while (it != children.end()) {
-		node<T>& n = *it;
 		int a = it->offset_start;
 		int b = a + it->size();
 		int c = from;
 		int d = to;
-    if (overlaps(a,b,c,d)) {
-			n.remove(c-a,d-a);
-			if (n.size() == 0) {
-				typename span_node<T>::child_list::const_iterator cit = children.iterator_to(n);
+		if (overlaps(a,b,c,d)) {
+			if (!in_overlap) {
+				from_it = it;
+			}
+			to_it = it;
+			in_overlap = true;
+			it->remove(c-a,d-a,from_n,to_n);
+			if (it->size() == 0) {
+				typename child_list::const_iterator cit = this->children.iterator_to(*it);
+				it++;
 				children.erase(cit);
-				// memory_node->next pointers need to be updated --- AHH single-linked list pains --- might need a doubly linked list among leaves
+				continue;
 			} 
+		} else {
+			in_overlap = false;
 		}
 		it++;
 	}
-	rebalance_after_remove();
 }
 
 template <typename T>
-void memory_node<T>::remove (int from, int to)
+void memory_node<T>::remove (int from, int to, memory_node<T>** from_n, memory_node<T>** to_n)
 {
+	if (from >= 0 && from < this->siz) *from_n = this;
+	if (to > 0 && to <= this->siz) *to_n = this;
 	from = std::max(0, from);
 	to = std::min(to, this->siz);
 	std::copy(buf + to, buf + this->siz, buf + from);
@@ -472,19 +483,100 @@ void memory_node<T>::remove (int from, int to)
 
 
 template <typename T>
-void span_node<T>::rebalance_after_remove ()
+void span_node<T>::rebalance_after_remove (span_node<T>* from, span_node<T>* to, span_node<T>** subroot)
 {
-	// check for zero-length children and remove them
-	auto it = children.cbegin();
-	while (it != children.cend()) {
-		if (it->size() == 0) {
-			it = children.erase_and_dispose(it, node_disposer<T>());
-		} else {
-			it++;
-		}
+	if (from == to) {
+		*subroot = from;
+		return;
 	}
-	// todo: check for redundant ancestor chains and remove them
-	// todo: other rebalance work?
+	rebalance_after_remove(from->parent,to->parent, subroot);
+	
+	// cases:
+	int fn = from->children.size();
+	int tn = to->children.size();
+	
+	if (fn == 0 || tn == 0) {
+		if (fn == 0) {
+			typename child_list::const_iterator it = from->parent->children.iterator_to(*from);
+			from->parent->children.erase_and_dispose(it, node_disposer<T>());
+		}
+		if (tn == 0) {
+			typename child_list::const_iterator it = to->parent->children.iterator_to(*to);
+			to->parent->children.erase_and_dispose(it, node_disposer<T>());			
+		}
+	} else if (fn == 1 && tn > 2) {
+		auto& n = to->children.front();
+		to->children.pop_front();
+		from->children.push_back(n);
+		n.parent = from;
+	} else if (tn == 1 && fn > 2) {
+		auto& n = from->children.back();
+		from->children.pop_back();
+		to->children.push_front(n);
+		n.parent = to;
+	} else if (tn == 1) {
+		for (auto& n : to->children) {
+			n.parent = from;
+		}
+		from->children.splice(from->children.end(),to->children); // this may trigger the need for rebalance_after_insert
+		// Delay this until later! This will happen during rebalance_after insert
+		//from->fixup_child_extents();
+		//from->fixup_my_extents();
+	} else if (fn == 1) {
+		for (auto& n: from->children) {
+			n.parent = to;
+		}
+		to->children.splice(to->children.begin(),from->children); // this may trigger the need for rebalance_after_insert
+		// Delay this until later! This will happen during rebalance_after insert
+		//to->fixup_child_extents();
+		//to->fixup_my_extents();
+	}
+}
+
+
+template <typename T>
+void span_node<T>::rebalance_upward (span_node<T>* node)
+{
+	span_node<T>* parent = node->parent;
+	
+	if (node->children.size() == 1) {
+		// if we're at the root, then leave -- we will root pivot later
+		if (parent == nullptr) {
+			return;
+		}
+		
+		// merge rightward: node->parent is guaranteed to have at least one other child on the right
+		typename span_node<T>::child_list::iterator it = node->parent->children.iterator_to(*node);
+		it++;
+		assert(it != parent->children.end());
+		span_node<T>& sib = dynamic_cast<span_node<T>&>(*it);
+		auto& onlychild = node->children.front();
+		onlychild.parent = &sib;
+		node->children.pop_front();
+		sib.children.push_front(onlychild);
+		
+		// purge this node
+		typename span_node<T>::child_list::const_iterator cit = parent->children.iterator_to(*node);
+		parent->children.erase_and_dispose(cit, node_disposer<T>());
+	}
+	
+	if (parent) {
+		rebalance_upward(parent);
+	}
+}
+
+
+template <typename T>
+void node<T>::fixup_siblings_extents()
+{
+	if (parent == nullptr) return;
+	int ofs = offset_start + size();
+	for (auto &it = ++parent->children.iterator_to(*this); it != parent->children.end(); it++) {
+		int saved_size = it->size();
+		it->offset_start = ofs;
+		it->set_size(saved_size);
+		ofs += saved_size;
+	}
 }
 
 template <typename T>

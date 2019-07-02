@@ -100,7 +100,31 @@ void tree_buffer<T>::append (const T* strdata, int length)
 template <typename T>
 void tree_buffer<T>::remove (int from, int to)
 {
-	root->remove(from,to);
+	if (to == from) {
+		return;
+	}
+	if (to < from) {
+		throw std::domain_error("Cannot remove with to < from");
+	}
+	memory_node<T>* from_n = nullptr;
+	memory_node<T>* to_n = nullptr;
+	span_node<T>* subroot_n;
+	root->remove(from,to,&from_n,&to_n);
+	span_node<T>::rebalance_after_remove(from_n->parent,to_n->parent,&subroot_n);
+	span_node<T>::rebalance_upward(subroot_n);
+	from_n->parent->rebalance_after_insert(true);
+	
+	// last step: adjust to the possibility of pivoted root
+	if (root->children.size() == 1) {
+		span_node<T>* old_root = root;
+		node<T>& n = root->children.front();
+		span_node<T>*new_root = dynamic_cast<span_node<T>*>(&n);
+		if (new_root) {
+			root = new_root;
+			root->parent = nullptr;
+			old_root->children.clear_and_dispose(node_disposer<T>());
+		}
+	}
 }
 
 
