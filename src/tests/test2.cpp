@@ -6,8 +6,6 @@
 #include <iostream>
 #include <string.h>
 
-#define DEBUG_TREEBUFFER
-
 #include "tree_buffer.hpp"
 
 using namespace treebuffer;

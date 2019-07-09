@@ -10,13 +10,13 @@
 #define SPAN_NODE_FANOUT 3
 #endif
 
-#ifdef DEBUG_TREEBUFFER
+#ifdef DEBUG_SKIPARRAYLIST
 #define PROTECTED public
 #else
 #define PROTECTED protected
 #endif
 
-namespace treebuffer::detail {
+namespace util::detail {
 template<typename T> class span_node;
 template<typename T> class memory_node;
 }
@@ -26,30 +26,29 @@ template<typename T> class memory_node;
 #include <string>
 #include <algorithm>
 
-namespace treebuffer
+namespace util
 {
 
-using namespace treebuffer::detail;
-namespace bi = boost::intrusive;
+using namespace util::detail;
 
 typedef int   offset_type;
 
 template<typename T> struct iterator;
-template<typename T> class tree_buffer;
+template<typename T> class skiparraylist;
 
 template<typename T>
-std::ostream& operator<< (std::ostream& os, tree_buffer<T>& b);
+std::ostream& operator<< (std::ostream& os, skiparraylist<T>& b);
 
 template <typename T>
-class tree_buffer
+class skiparraylist
 {
 public:
 	typedef T char_type;
 
-	friend std::ostream& operator<<<T>(std::ostream& os, tree_buffer<T>& b);
+	friend std::ostream& operator<<<T>(std::ostream& os, skiparraylist<T>& b);
 	
-	tree_buffer();
-	~tree_buffer();
+	skiparraylist();
+	~skiparraylist();
 	
 	iterator<T> begin ();
 	iterator<T> end ();
@@ -66,41 +65,39 @@ public:
 	
 	std::ostream& dot (std::ostream& os) const;
 	
-	friend std::ostream& operator<<<> (std::ostream& os, tree_buffer<T>& tree);
+	friend std::ostream& operator<<<> (std::ostream& os, skiparraylist<T>& tree);
 	
 PROTECTED:
-	span_node<T>* root;
-	
+	node<T>* root;
+		
 };
 
 
 template<typename T>
 struct iterator {
 public:
-	memory_node<T>* mnode = nullptr;
+	leaf<T>* leaf = nullptr;
 	offset_type offset = 0;
 	bool valid = false;
 	
-	bool operator== (const iterator& o) { return mnode == o.mnode && offset == o.offset; }
+	bool operator== (const iterator& o) { return leaf == o.leaf && offset == o.offset; }
 	iterator& operator++ ();
 	iterator& operator-- ();
 	iterator& operator+= (offset_type i);
 	iterator& operator-= (offset_type i);
-	iterator* operator->() { return this; }
-	const iterator* operator->() const { return this; }
-	T& operator* () const { return mnode->buf[offset]; }
+	T& operator* () const { return leaf->buf[offset]; }
 	
-	static bool is_end (const iterator& it) { return it.mnode==nullptr && it.valid; }
+	static bool is_end (const iterator& it) { return it.leaf==nullptr && it.valid; }
 	static iterator end () { return iterator {nullptr,0,true}; }
 };
 
 
 
 
-} // namespace treebuffer
+} // namespace util
 
-#include "tree_buffer_detail.hpp"
+#include "skiparraylist_detail.hpp"
 
-#include "tree_buffer_impl.hpp"
-#include "tree_buffer_text.hpp"
+#include "skiparraylist_impl.hpp"
+#include "skiparraylist_text.hpp"
 

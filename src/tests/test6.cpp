@@ -1,9 +1,10 @@
 /** 
  * @include treebuffer-define-directives
- * @define STR_SIZE [ 300 ]
+ * @define STR_SIZE [ 50 ]
  **/
 
 #include <iostream>
+#include <algorithm>
 #include <vector>
 #include <string.h>
 #include <sstream>
@@ -17,6 +18,13 @@ using namespace treebuffer::detail;
 
 bool compare (const std::string& truth, tree_buffer<char>& tb);
 
+void dot_it (tree_buffer<char>& tb, std::string fn) {
+	fstream dot6a;
+	dot6a.open(fn.c_str(), ios_base::out);
+  tb.dot(dot6a);
+	dot6a.close();	
+}
+
 int main (int argc, char* argv[]) {
 	
 	string truth;
@@ -24,7 +32,6 @@ int main (int argc, char* argv[]) {
 	
 	string s("This is a very long string.");
 	int n = s.size();
-	
 	
 	/**
 	 * Step one: populate truth and tb with the same characters and test if they are equal.
@@ -37,10 +44,8 @@ int main (int argc, char* argv[]) {
 	}
 
 	compare(truth,tb);
-	fstream dot6a;
-	dot6a.open("./test6a.dot", ios_base::out);
-  tb.dot(dot6a);
-	dot6a.close();
+	
+	dot_it(tb, "test6a.dot");
 	
 	
 	/**
@@ -49,12 +54,40 @@ int main (int argc, char* argv[]) {
 	tb.remove(5,12);
 	truth.erase(5,12-5);
 	compare(truth,tb);
-
+	
+	dot_it(tb, "test6b.dot");
 
 	/**
 	 * Step three: perform a sequence of remove-insert steps at varying positions and lengths, comparing equality at each step.
 	 */
-	
+	int x = 53;
+	int len = 0;
+	for (int k=20; k > 2; k--) {
+		cout << "insert mode" << endl << flush;
+		for (int j = 1; j < 30; j++ ) {
+			x = x * k + 1;
+			x = x % truth.size();
+			len = j;
+
+			cout << "insert(" << x << "," << (x+k)%n << "," << len << ")  " << flush;
+			truth.insert(x,&s[(x+k)%n],len);
+			tb.insert(x,&s[(x+k)%n],len);
+			dot_it(tb, "test6c.dot");
+			compare(truth,tb);
+		}
+		cout << "remove mode" << endl << flush;
+		for (int i = 1; i < 20; i++) {
+			x = x * i + 1;
+			x = x % truth.size();
+			len = std::min((int)(truth.size() - x), i);
+			
+			cout << "remove(" << x << "," << len << ")  " << flush;
+			truth.erase(x,len);
+		  tb.remove(x,x+len);
+			dot_it(tb, "test6d.dot");
+			compare(truth,tb);
+		}
+	}
 	
 	
 	/**
@@ -89,13 +122,13 @@ int main (int argc, char* argv[]) {
 
 
 bool compare (const std::string& truth, tree_buffer<char>& tb) {
-	stringstream ss;
-	ss << tb;
-	bool b = ss.str() == truth;
-	test_assert(ss.str() == truth);
+	stringstream arraydata;
+	arraydata << tb;
+	bool b = arraydata.str() == truth;
+	test_assert(arraydata.str() == truth);
 	if (!b) {
-		std::cout << ss.str() << std::endl;
-		std::cout << "[" << ss.str().size() << "]--- compared to ---[" << truth.size() << "]" << std::endl;
+		std::cout << arraydata.str() << std::endl;
+		std::cout << "[" << arraydata.str().size() << "]--- compared to ---[" << truth.size() << "]" << std::endl;
 		std::cout << truth << endl << flush;
 	}
 	return b;

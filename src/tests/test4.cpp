@@ -16,8 +16,6 @@
 #include <string.h>
 #include "testmatrix.h"
 
-#define DEBUG_TREEBUFFER
-
 #include "tree_buffer.hpp"
 
 using namespace std;
