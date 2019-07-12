@@ -1,0 +1,3 @@
+#!/bin/sh
+
+dot -Tsvg $1.dot > $1.svg && display $1.svg
