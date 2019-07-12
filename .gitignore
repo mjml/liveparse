@@ -1,3 +1,6 @@
 *.svg
 *.dot
+*/tests/build/
+*/tests/output/
+*/tests/include/
 Makefile.matrix
