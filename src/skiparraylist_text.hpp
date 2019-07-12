@@ -6,28 +6,28 @@
 
 
 
-namespace treebuffer {
+namespace util {
 
-using namespace treebuffer::detail;
+using namespace util::detail;
 using namespace std;
 
 
 template <typename T>
-std::ostream& operator<< (std::ostream& os, const treebuffer::detail::node<T>& n)
+std::ostream& operator<< (std::ostream& os, const util::detail::node<T>& n)
 {
 	return n.printTo(os);
 }
 
 
 template<typename U>
-std::ostream& operator<< (std::ostream& os, tree_buffer<U>& b)
+std::ostream& operator<< (std::ostream& os, skiparraylist<U>& b)
 {
 	return os << *(b.root);
 }
 
 
 template<typename T>
-std::ostream& tree_buffer<T>::dot (std::ostream& os) const
+std::ostream& skiparraylist<T>::dot (std::ostream& os) const
 {
 	os << "digraph { " << endl;
 	os << "node [ fontname=\"Liberation Sans\" ];" << endl;
@@ -94,7 +94,7 @@ std::ostream& memory_node<T>::dot (std::ostream& os) const
 
 
 template<typename T>
-std::ostream& span_node<T>::printTo (std::ostream& os) const
+std::ostream& node<T>::printTo (std::ostream& os) const
 {	
 	for (auto it = this->children.cbegin(); it != this->children.cend(); it++) {
 	  os << *it;
@@ -104,7 +104,7 @@ std::ostream& span_node<T>::printTo (std::ostream& os) const
 
 
 template<typename T>
-std::ostream& memory_node<T>::printTo (std::ostream& os) const
+std::ostream& leaf<T>::printTo (std::ostream& os) const
 {
 	for (int i=0; i < this->siz; i++) {
 		os << this->buf[i];
