@@ -22,6 +22,14 @@ class inner;
 template<typename T>
 class leaf;
 
+template<typename T>
+struct subtree_context
+{
+	inner<T>* subroot;
+	inner<T>* from;
+	inner<T>* to;
+};
+
 namespace bi = boost::intrusive;
 
 template<typename T>
@@ -30,8 +38,14 @@ class node
 public:
 	friend class util::skiparraylist<T>;
 	
-	node () : parent(nullptr), offset_start(0) {}
-	node (inner<T>* p) : parent(p), offset_start(0) {}
+	inner<T>* parent;
+	node<T>* _prev;
+	node<T>* _next;
+	offset_type offset;
+	int siz;
+	
+	node () : parent(nullptr), offset(0), _prev(nullptr), _next(nullptr) {}
+	node (inner<T>* p) : parent(p), offset(0), _prev(nullptr), _next(nullptr) {}
 	virtual ~node() { }
   
 	virtual iterator<T> at (int pos) = 0;
@@ -40,132 +54,183 @@ public:
 	virtual int insert (const iterator<T>& it, const T* strdata, int length) = 0;
 	virtual int append (const T* strdata, int length) = 0;
 	virtual void remove (int from, int to, subtree_context<T>* ctx) = 0;
-	virtual void merge_small_nodes (node<T>* to) = 0;
-	void fixup_all_siblings_extents ();
+	virtual void rejoin (int nfrom, int nto, node<T>* to, subtree_context<T>* ctx) = 0;
 	virtual bool check() const = 0;
 	virtual std::ostream& printTo (std::ostream& os) const = 0;
 	virtual std::ostream& dot (std::ostream& os) const = 0;
 
+	virtual node<T>* next() { return _next; }
+	virtual node<T>* prev() { return _prev; }
+
+	void fixup_all_siblings_extents ();
+	
 	template<typename N>
-	static void link (N* from, N* middle, N* to) {
-		middle->prev = from;
-		middle->next = to;
+	static void link (inner<T>* parent, N* from, N* middle, N* to) {
+		from->parent = parent;
+		middle->_prev = from;
+		middle->_next = to;
 		if (from) {
-			from->next = middle;
+			from->_next = middle;
 		}
 		if (to) {
-			to->prev = middle;
+			to->_prev = middle;
 		}
 	}
 	template <typename N>
 	static void unlink (N* n) {
-		if (n->prev) {
-			n->prev->next = n->next;
+		if (n->parent && n->parent->child == n) {
+			if (n->_next && n->_next->parent == n->parent) {
+				n->parent->child = n->_next;
+			} else {
+				n->parent->child = nullptr;
+			}
 		}
-		if (n->next) {
-			n->next->prev = n->prev;
+		if (n->_prev) {
+			n->_prev->_next = n->_next;
+		}
+		if (n->_next) {
+			n->_next->_prev = n->_prev;
 		}
 	}
 	
-	inner<T>* parent;
-	offset_type offset;
-	int siz;
 };
 
 
 template<typename T>
-class inner
+class inner : public node<T>
 {
 public:
-	int num_children ();
-	bool empty () { return child == nullptr; }
 	
-	inner<T>* prev;
-	inner<T>* next;
 	node<T>* child;
 
+	inner() : node<T>(), child(nullptr) {}
+	inner(inner<T>* parent) : node<T>(parent), child(nullptr) {}
+	virtual ~inner() { }
+
+	iterator<T> at (int pos);
+	offset_type size() const { return this->siz; }
+	void set_size (offset_type n) { this->siz = n; }
+	int insert (const iterator<T>& it, const T* strdata, int length);
+	int append (const T* strdata, int length);
+	void remove (int from, int to, subtree_context<T>* ctx);
+	bool check() const;
+	std::ostream& printTo (std::ostream& os) const;
+	std::ostream& dot (std::ostream& os) const;
+
+	void merge_small_nodes ();
+	void rebalance_after_insert (bool full_height);
+	void rejoin (int nfrom, int nto, node<T>* to, subtree_context<T>* ctx);
+
+	int num_children () const;
+
+	inner<T>* prev() const { return reinterpret_cast<inner<T>*>(this->_prev); }
+	inner<T>* next() const { return reinterpret_cast<inner<T>*>(this->_next); }
+	
+	bool empty () { return child == nullptr; }
+	
 	node<T>* front_child() { return child; }
 	node<T>* back_child() {
 		node<T>* n = child;
-		while (n && n->next && n->next->parent == this) {
-			n = n->next;
+		while (n && n->_next && n->_next->parent == this) {
+			n = n->_next;
 		}
 		return n;
   };
+		
 	
 	template<typename N>
 	void push_front(N* n) {
-		n->next = child;
+		n->_next = child;
 		if (child) {
-			n->prev = child->prev;
-			if (child->prev) {
-				child->prev->next = n;
+			n->_prev = child->_prev;
+			if (child->_prev) {
+				child->_prev->_next = n;
 			}
-			child->prev = n;
+			child->_prev = n;
 		} else {
 			child = n;
 		}
 		n->parent = this;
-		siz += n->siz;
+		this->siz += n->siz;
 	}
+
 	
 	template<typename N>
 	void push_back(N* n) {
-		auto b = back_child();
-		n->prev = b;
+		auto b = dynamic_cast<N*>(back_child());
+		assert(b);
+		n->_prev = b;
 		if (b) {
-			n->next = b->next;
-			if (b->next) {
-				b->next->prev = n;
+			n->_next = b->_next;
+			if (b->_next) {
+				b->_next->_prev = n;
 			}
-			b->next = n;
+			b->_next = n;
 		} else {
 			child = n;
-			if (next && next->front_child()) {
-				n->next = next->front_child();
-				next->child->prev = n;
+			if (next() && next()->front_child()) {
+				n->_next = next()->front_child();
+				auto nc = reinterpret_cast<N*>(next()->front_child());
+				assert(nc);
+				nc->_prev = n;
 			}
-			if (prev) {
-				auto pb = prev->back_child();
+			if (prev()) {
+				auto pb = reinterpret_cast<N*>(prev()->back_child());
+				assert(pb);
 				if (pb) {
-					n->prev = pb;
-					pb->next = n;
+					n->_prev = pb;
+					pb->_next = n;
 				}
 			}
 		}
 		n->parent = this;
-		siz += n->siz;
+		this->siz += n->siz;
 	}
 
+	
 	node<T>* pop_back () {
 		auto c = back_child();
 		if (!c) return nullptr;
 		int csz = c->siz;
 		node<T>::unlink(c);
 		c->parent = nullptr;
-		siz -= csz;
+		this->siz -= csz;
 		return c;
 	}
 
+	
 	node<T>* pop_front () {
 		auto c = front_child();
 		if (!c) return nullptr;
 		int csz = c->siz;
 		node<T>::unlink(c);
 		c->parent = nullptr;
-		siz -= csz;
+		this->siz -= csz;
 		return csz;
 	}
+
 	
 	void clear_and_delete_children () {
 		auto c = child;
 		while (c && c->parent == this) {
-			auto next_child = c->next;
-			unlink(c);
+			auto next_child = c->_next;
+			node<T>::unlink(c);
 			delete c;
 			c = next_child;
 		}
 	}
+
+	
+	void erase_and_delete (node<T>* n) {
+		assert(n->parent == this);
+		node<T>::unlink(n);
+		delete(n);
+	}
+
+	
+	void fixup_my_extents ();
+	void fixup_child_extents ();
+	void fixup_ancestors_extents ();
 
 };
 
@@ -178,14 +243,14 @@ class leaf : public node<T>
 {
 public:
 	static constexpr int metadata_size() {
-		return sizeof(node<T>) + sizeof(leaf_metadata<T>);
+		return sizeof(node<T>);
 	}
 	static const int capacity = (LEAF_CAPACITY - metadata_size()) / sizeof(T);
 	static_assert (capacity > 0, "Capacity is too small");
-		
+
 public:
-	leaf () {}
-	leaf (span_node<T>* p) : node<T>(p) {}
+	leaf () : node<T>() {}
+	leaf (inner<T>* parent) : node<T>(parent) {}
 	virtual ~leaf () { }
 	
 	iterator<T> at (int pos);
@@ -198,6 +263,9 @@ public:
 	std::ostream& printTo (std::ostream& os) const;
 	std::ostream& dot (std::ostream& os) const;
 	bool check() const;
+
+	leaf<T>* prev() const { return reinterpret_cast<leaf<T>*>(this->_prev); }
+	leaf<T>* next() const { return reinterpret_cast<leaf<T>*>(this->_next); }
 	
 	int raw_insert (const iterator<T>& it, const T* strdata, int length, T* carry_data, int* carry_length);
 	int raw_prepend (const T* strdata, int length) { return raw_insert(iterator<T>{this,0}, strdata, length, nullptr, nullptr); }
@@ -223,13 +291,13 @@ bool inner<T>::check() const
 	CHECK_AND_THROW( this->child->offset == 0 );
 	
 	auto last = this->child;
-	auto cur = this->child->next;
+	auto cur = this->child->_next;
 	int size_count = 0;
 	
 	while (cur->parent == last->parent) {
 		size_count += cur->size();
-		last = last->next;
-		cur = cur->next;
+		last = last->_next;
+		cur = cur->_next;
 	}
 	
 	cur = this->child;
@@ -250,7 +318,7 @@ bool leaf<T>::check() const
 template <typename T>
 iterator<T> inner<T>::at (int pos)
 {
-	if (pos > siz) {
+	if (pos > this->siz) {
 		throw std::range_error ("pos > siz");
 	}
 	auto n = child;
@@ -261,7 +329,7 @@ iterator<T> inner<T>::at (int pos)
 		} else {
 			break;
 		}
-		n = n->next;
+		n = n->_next;
 	}
 	
 	assert(last);
@@ -274,8 +342,8 @@ iterator<T> inner<T>::at (int pos)
 template <typename T>
 iterator<T> leaf<T>::at (int pos)
 {
-	if (pos >= siz) {
-		std::cerr << "pos: " << pos << " siz: " << siz << std::endl << std::flush;
+	if (pos >= this->siz) {
+		std::cerr << "pos: " << pos << " siz: " << this->siz << std::endl << std::flush;
 		throw std::range_error ("pos >= siz");
 	}
 	return { this, pos, true };
@@ -283,12 +351,12 @@ iterator<T> leaf<T>::at (int pos)
 
 
 template <typename T>
-int inner<T>::num_children ()
+int inner<T>::num_children () const
 {
 	int m = 0;
 	auto n = child;
 	while (n->parent == this) {
-		n = n->next;
+		n = n->_next;
 		m++;
 	}
 	return m;
@@ -302,14 +370,14 @@ template <typename T>
 int inner<T>::insert (const iterator<T>& it, const T* strdata, int length)
 {
 	const int capacity = leaf<T>::capacity;
-	auto from = it->leaf;
+	auto from = it.leaf;
 	
 	assert(from->parent == this);
 	
 	// Determine how many characters we can fit into the leaf pointed to by 'it'.
-	int carry_length = from->siz - it->offset;
+	int carry_length = from->siz - it.offset;
 	T*  carry_data = (T*) alloca(sizeof(T) * carry_length);
-	int first_segment_length = std::min(length,capacity - it->offset);
+	int first_segment_length = std::min(length,capacity - it.offset);
 	int second_segment_length = length - first_segment_length;
 	int remaining = second_segment_length;
 	
@@ -318,7 +386,7 @@ int inner<T>::insert (const iterator<T>& it, const T* strdata, int length)
 	
 	// Treat the remainder of strdata using a new pointer, 'data', with 'remaining_length'.
 	const T* data = strdata + first_segment_length;
-	leaf<T> *last = from,	*to = from->next, *m = from;
+	leaf<T> *last = from,	*to = from->next(), *m = from;
 	bool same_parent = to && (to->parent == from->parent);
 	
 	if (to && (to->siz + carry_length <= capacity)) { 
@@ -331,7 +399,7 @@ int inner<T>::insert (const iterator<T>& it, const T* strdata, int length)
 		int amt = 0;
 		
 		m = new leaf<T>(this);
-		node<T>::link(from,m,to);
+		node<T>::link(this,from,m,to);
 		amt = std::min(remaining,capacity);
 		
 		m->raw_prepend(data, amt);
@@ -340,7 +408,7 @@ int inner<T>::insert (const iterator<T>& it, const T* strdata, int length)
 		remaining -= amt;
 		m->offset = last->offset + last->siz;
 		
-		last->next = m;
+		last->_next = m;
 		last = m;
 	}
 	
@@ -350,13 +418,13 @@ int inner<T>::insert (const iterator<T>& it, const T* strdata, int length)
 			last->raw_append(carry_data, carry_length);
 		} else { // create a separate node
 			m = new leaf<T>(this);
-			node<T>::link(last, m, to);
+			node<T>::link(this, last, m, to);
 			m->raw_prepend(carry_data, carry_length);
 			m->offset = last->offset + last->siz;
 			last = m;
 		}
 	}
-	last->next = to;
+	last->_next = to;
 	
 	m->fixup_all_siblings_extents();
 	
@@ -389,7 +457,7 @@ int leaf<T>::insert (const iterator<T>& at_, const T* strdata, int length)
 template <typename T>
 int inner<T>::append (const T* strdata, int length)
 {
-	assert(this->parent == nullptr || children.size() > 0);
+	assert(this->parent == nullptr || num_children() > 0);
 	int r = 0;
 	if (num_children() == 0) {
 		leaf<T>* m = new leaf<T>(this);
@@ -410,7 +478,7 @@ int leaf<T>::append (const T* strdata, int length)
 {
 	inner<T>* parent = this->parent;
 	leaf<T>* m = this;
-	leaf<T>* saved_next = this->next;
+	leaf<T>* saved_next = this->next();
 	
 	int r = raw_append(strdata,length);
 	length -= r;
@@ -420,14 +488,14 @@ int leaf<T>::append (const T* strdata, int length)
 		leaf<T>* sib = new leaf<T>(parent);
 		parent->push_back(sib);
 		sib->offset = this->offset + this->size();
-		m->next = sib;
-		sib->prev = m;
+		m->_next = sib;
+		sib->_prev = m;
 		r += sib->append(strdata,length);
 		length -= r;
 		strdata += r;
 		m = sib;
 	}
-	m->next = saved_next;
+	m->_next = saved_next;
 	this->fixup_all_siblings_extents();
 	parent->rebalance_after_insert(false);
 	parent->fixup_ancestors_extents();
@@ -439,37 +507,33 @@ int leaf<T>::append (const T* strdata, int length)
 template <typename T>
 void inner<T>::rebalance_after_insert (bool full_height)
 {
-	if (this->children.size() > NODE_FANOUT) {
+	if (num_children() > NODE_FANOUT) {
 		
-		int nc = this->children.size();
+		int nc = num_children();
 		
 		if (this->parent == nullptr) {
 			// special case: root pivot
 			inner<T>* new_root = new inner<T>;
 			this->parent = new_root;
-			new_root->push_back(*this);
+			new_root->push_back(this);
 		}
 		
-		int movn = (this->children.size() < (NODE_FANOUT * 2)) ? this->children.size() / 2 : NODE_FANOUT;
+		int movn = (num_children() < (NODE_FANOUT * 2)) ? num_children() / 2 : NODE_FANOUT;
 		
 		// add new siblings to the current node, then transfer children to those siblings
-		while (children.size() > NODE_FANOUT) {
+		while (num_children() > NODE_FANOUT) {
 		
 			inner<T>* sib = new inner<T>(this->parent);
-			node<T>::link(this, sib, this->next);
-			int sz;
-			sz = 0;
+			node<T>::link(this->parent, this, sib, this->next());
 			
 			// transfer some children to the new sibling
 			for (int i=0; i < movn; i++) {
 				auto last = pop_back();
-				sz += last.size();
 				sib->push_front(last);
 			}
-			this->offset_end -= sz;
-			sib->offset_start = this->offset_end;
-			sib->offset_end = sib->offset_start + sz;
+			sib->offset = this->offset + this->siz;
 			sib->fixup_child_extents();
+			sib->fixup_my_extents();
 			
 			movn = (this->num_children() < (NODE_FANOUT * 2)) ? this->num_children() / 2 : NODE_FANOUT;
 		}
@@ -541,8 +605,8 @@ void inner<T>::remove (int from, int to, subtree_context<T>* ctx)
 	bool found_from = false;
 	bool found_to = false;
 	while (n && n->parent == this) {
-		int a = it->offset_start;
-		int b = a + it->size();
+		int a = n->offset;
+		int b = a + n->size();
 		int c = from;
 		int d = to;
 		if (overlaps(a,b,c,d)) {
@@ -560,19 +624,18 @@ void inner<T>::remove (int from, int to, subtree_context<T>* ctx)
 				if (n == ctx->to) {
 					ctx->to = nullptr;
 				}
-				//typename child_list::const_iterator cit = this->children.iterator_to(*it);
-				// bug: when a memory node is reclaimed, the new last node contains a dangling 'next' pointer
-				//children.erase_and_dispose(cit, node_disposer<T>());
-				unlink(n);
-				siz -= n->siz; // optional, will be recalculated later since the entire ancestor chain needs it too.
+				auto m = n->_next;
+				node<T>::unlink(n);
+				this->siz -= n->siz; // optional, will be recalculated later since the entire ancestor chain needs it too.
 				delete n;
+				n = m;
 				continue;
 			}
 		}
-		n = n->next;
+		n = n->_next;
 	}
 	if (num_children() == 0) {
-		siz = 0;
+		this->siz = 0;
 	}
 	
 	if (ctx->subroot == nullptr && found_from && found_to) {
@@ -584,22 +647,22 @@ void inner<T>::remove (int from, int to, subtree_context<T>* ctx)
 template <typename T>
 void leaf<T>::remove (int from, int to, subtree_context<T>* ctx)
 {
-	
 	if (from >= 0 && from < this->siz) ctx->from = this->parent;
 	if (to > 0 && to <= this->siz) ctx->to = this->parent;
 	from = std::max(0, from);
 	to = std::min(to, this->siz);
 	std::copy(data + to, data + this->siz, data + from);
 	this->siz -= (to - from);
-	
 }
 
 
 template <typename T>
-void inner<T>::rejoin (int nfrom, int nto, inner<T>* to, subtree_context<T>* ctx)
-{ 
-	inner<T>* next_left = nullptr;
-	inner<T>* next_right = nullptr;
+void inner<T>::rejoin (int nfrom, int nto, node<T>* to_, subtree_context<T>* ctx)
+{
+	inner<T> *to = dynamic_cast<inner<T>*>(to_);
+	assert(to);
+	node<T> *next_left = nullptr;
+	node<T> *next_right = nullptr;
 	bool bottom = false;
 	
 	
@@ -608,12 +671,12 @@ void inner<T>::rejoin (int nfrom, int nto, inner<T>* to, subtree_context<T>* ctx
 	}
 	
 	if (!ctx->from) {
-		auto it = this->children.begin();
-		while (it != this->children.end()) {
-			if (it->offset_start + it->size() <= nfrom) {
-				next_left = &(*it); 
+		auto n = this->front_child();
+		while (n && n->parent == this) {
+			if (n->offset + n->siz <= nfrom) {
+				next_left = n; 
 			}
-			it++;
+			n = n->_next;
 		}
 	}
 	if (!next_left) {
@@ -621,12 +684,12 @@ void inner<T>::rejoin (int nfrom, int nto, inner<T>* to, subtree_context<T>* ctx
 	}
 	
 	if (!ctx->to) {
-		auto it = to->children.rbegin();
-		while (it != to->children.rend()) {
-			if (it->offset_start >= nto) {
-				next_right = &(*it);
+		auto n = to->back_child();
+		while (n && n->parent == this) {
+			if (n->offset >= nto) {
+				next_right = n;
 			}
-			it++;
+			n = n->_prev;
 		}
 	}
 	if (!next_right) {
@@ -634,95 +697,111 @@ void inner<T>::rejoin (int nfrom, int nto, inner<T>* to, subtree_context<T>* ctx
 	}
 	
 	if (!next_left && next_right) {
-		if (this->children.size() > 0) {
-			next_left = &(*this->children.back());
+		if (this->num_children() > 0) {
+			next_left = back_child();
 		} else {
 			next_left = next_right;
 		}
 	}
 	if (next_left && !next_right) {
-		if (to->children.size() > 0) {
-			next_right = &(*to->children.front());
+		if (to->num_children() > 0) {
+			next_right = front_child();
 		} else {
 			next_right = next_left;
 		}
 	}
 	
 	if (next_left && next_right) {
-		next_left->rejoin(nfrom - next_left->offset_start, nto - next_right->offset_start, next_right, ctx);
+		next_left->rejoin(nfrom - next_left->offset, nto - next_right->offset, next_right, ctx);
 	}
 	
-	if (this->parent && this->children.size() == 0) {
-		typename inner<T>::child_list::const_iterator cit = this->parent->children.iterator_to(*this);
-		this->parent->children.erase_and_dispose(cit,node_disposer<T>());
+	if (num_children() == 1 || to->num_children() == 1) {
+		this->merge_small_nodes();
 	}
-	if (this->parent && to->children.size() == 0) {
-		typename inner<T>::child_list::const_iterator cit = to->parent->children.iterator_to(*to);
-		to->parent->children.erase_and_dispose(cit,node_disposer<T>());
+	if (this->parent && this->num_children() == 0) {
+		node<T>::unlink(this);
+		delete this;
 	}
-	if (this->children.size() == 1 || to->children.size() == 1) {
-		//this->merge_small_nodes(to);
+	if (to->parent && to->num_children() == 0) {
+		node<T>::unlink(to);
+		delete to;
 	}
 	
 }
 
 
+template<typename T>
 void leaf<T>::rejoin (int nfrom, int nto, node<T>* to, subtree_context<T>* ctx)
 {
 	leaf<T>* mto = dynamic_cast<leaf<T>*>(to);
 	assert(mto != nullptr);
+	return;
+}
 
-	// todo
+
+template<typename T>
+void inner<T>::merge_small_nodes ()
+{
+	int nc = this->num_children();
+	int nnc = this->next() ? this->next()->num_children() : 0;
 	
+	if (nc + nnc <= NODE_FANOUT && nnc > 0) {
+		auto sib = this->next();
+		for (auto n = sib->child; n && n->parent == sib; n = n->next()) {
+			n->parent = this;
+		}
+		node<T>::unlink(sib);
+		this->fixup_child_extents();
+		this->fixup_my_extents();
+	}
 }
 
 
 template <typename T>
-void inner<T>::fixup_all_siblings_extents()
+void node<T>::fixup_all_siblings_extents()
 {
-	if (parent == nullptr) return;
+	if (this->parent == nullptr) return;
 	int ofs = 0;
 	int saved_size = 0;
-	for (auto it = parent->children.begin(); it != parent->children.end(); it++) {
-		saved_size = it->size();
-		it->offset_start = ofs;
-		it->set_size(saved_size);
+	for (auto n = this->parent->front_child(); n && n->parent == this->parent; n = n->_next) {
+		saved_size = n->size();
+		n->offset = ofs;
+		n->set_size(saved_size);
 		ofs += saved_size;
 	}
 }
 
 
 template <typename T>
-void node<T>::fixup_my_extents ()
+void inner<T>::fixup_my_extents ()
 {
-	int offset_end = this->offset_start;
-	for (auto &it : children) {
-		node<T>& n = it;
-		offset_end += n.size();
+	int sz = 0;
+	for (auto n = child; n && n->parent == this; n = n->_next) {
+		sz += n->size();
 	}
-	this->offset_end = offset_end;
+	this->siz = sz;
 }
 
 
 template <typename T>
-void node<T>::fixup_child_extents ()
+void inner<T>::fixup_child_extents ()
 {
-	if (children.empty()) return;
-	node<T>& n = children.front();
-	int size = n.size();
-	n.offset_start = 0;
-	n.set_size(size);
-	n.fixup_all_siblings_extents();
+	if (empty()) return;
+	node<T>* n = child;
+	int size = n->size();
+	n->offset = 0;
+	n->set_size(size);
+	n->fixup_all_siblings_extents();
 }
 
 
 template <typename T>
-void node<T>::fixup_ancestors_extents ()
+void inner<T>::fixup_ancestors_extents ()
 {
-	node<T>* ma = this;
+	inner<T>* ma = this;
 	ma->fixup_my_extents();
 	while (ma) {
-		node<T>* grandma = ma->parent;
+		inner<T>* grandma = ma->parent;
 		if (grandma != nullptr) {
  			ma->fixup_all_siblings_extents();
 			grandma->fixup_my_extents();

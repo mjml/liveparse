@@ -1,5 +1,5 @@
 /** 
- * @include treebuffer-define-directives
+ * @include skiparraylist-defines
  * @define STR_SIZE [ 50 ]
  **/
 
@@ -9,16 +9,16 @@
 #include <string.h>
 #include <sstream>
 #include <fstream>
-#include "testmatrix.h"
-#include "tree_buffer.hpp"
+#include <testmatrix.h>
+#include "skiparraylist.hpp"
 
 using namespace std;
-using namespace treebuffer;
-using namespace treebuffer::detail;
+using namespace util;
+using namespace util::detail;
 
-bool compare (const std::string& truth, tree_buffer<char>& tb);
+bool compare (const std::string& truth, skiparraylist<char>& tb);
 
-void dot_it (tree_buffer<char>& tb, std::string fn) {
+void dot_it (skiparraylist<char>& tb, std::string fn) {
 	fstream dot6a;
 	dot6a.open(fn.c_str(), ios_base::out);
   tb.dot(dot6a);
@@ -28,7 +28,7 @@ void dot_it (tree_buffer<char>& tb, std::string fn) {
 int main (int argc, char* argv[]) {
 	
 	string truth;
-	tree_buffer<char> tb;
+	skiparraylist<char> tb;
 	
 	string s("This is a very long string.");
 	int n = s.size();
@@ -121,7 +121,7 @@ int main (int argc, char* argv[]) {
 }
 
 
-bool compare (const std::string& truth, tree_buffer<char>& tb) {
+bool compare (const std::string& truth, skiparraylist<char>& tb) {
 	stringstream arraydata;
 	arraydata << tb;
 	bool b = arraydata.str() == truth;

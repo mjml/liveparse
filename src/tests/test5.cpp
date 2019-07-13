@@ -7,23 +7,24 @@
 #include <cassert>
 #include <iostream>
 #include <string.h>
+#include <testmatrix.h>
 
-#define DEBUG_TREEBUFFER
+#define DEBUG_SKIPARRAYLIST
 
-#include "tree_buffer.hpp"
+#include "skiparraylist.hpp"
 
 using namespace std;
-using namespace treebuffer;
-using namespace treebuffer::detail;
+using namespace util;
+using namespace util::detail;
 
 int main (int argc, char* argv[])
 {
-	tree_buffer<char> tree;
-	auto *s = new span_node<char>;
-	auto *m = new memory_node<char>;
-
+	skiparraylist<char> tree;
+	auto *s = new inner<char>;
+	auto *m = new leaf<char>;
+	
 	tree.root = s;
-	s->children.push_back(*m);
+	s->push_back(m);
 	m->parent = s;
 	
 	char text_buffer[] = "Test string.";

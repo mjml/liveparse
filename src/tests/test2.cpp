@@ -1,40 +1,42 @@
 /**
- * @include treebuffer-define-directives
+ * @include skiparraylist-defines
  **/
 
 #include <cassert>
 #include <iostream>
 #include <string.h>
 
-#include "tree_buffer.hpp"
 
-using namespace treebuffer;
-using namespace treebuffer::detail;
+#define DEBUG_SKIPARRAYLIST
+#include "skiparraylist.hpp"
+
+using namespace util;
+using namespace util::detail;
 using namespace std;
 
 int main (int argc, char* argv[])
 {
-	auto m8b = new memory_node<char>;
-	auto m8c = new memory_node<char>;
-	auto m8d = new memory_node<char>;
-	auto s8a = new span_node<char>;
-	auto s8a2 = new span_node<char>;
-	auto s8a3 = new span_node<char>;
+	auto m8b = new leaf<char>;
+	auto m8c = new leaf<char>;
+	auto m8d = new leaf<char>;
+	auto s8a = new inner<char>;
+	auto s8a2 = new inner<char>;
+	auto s8a3 = new inner<char>;
 	
 	try {
 
 		char text_buffer[] = "Test string.";
 		
-		s8a2->children.push_back(*m8b);
-		s8a2->children.push_back(*m8c);
-		s8a2->children.push_back(*m8d);
+		s8a2->push_back(m8b);
+		s8a2->push_back(m8c);
+		s8a2->push_back(m8d);
 		m8b->parent = m8c->parent = m8d->parent = s8a2;
 
-		m8b->next = m8c;
-		m8c->next = m8d;
+		m8b->_next = m8c;
+		m8c->_next = m8d;
 		
-		s8a->children.push_back(*s8a2);
-		s8a->children.push_back(*s8a3);
+		s8a->push_back(s8a2);
+		s8a->push_back(s8a3);
 		s8a2->parent = s8a3->parent = s8a;
 
 		auto it = m8b->at(0);
@@ -49,9 +51,9 @@ int main (int argc, char* argv[])
 		cout << "The buffer contains: " << endl;
 		cout << *s8a << endl;
 	
-		cout << "s8a: " << "[ " << s8a->offset_start << ", " << s8a->offset_end << " ]" << endl;
-		cout << "s8a2: " << "[ " << s8a2->offset_start << ", " << s8a2->offset_end << " ]" << endl;
-		cout << "s8a3: " << "[ " << s8a3->offset_start << ", " << s8a3->offset_end << " ]" << endl;
+		cout << "s8a: " << "[ " << s8a->offset << ", " << s8a->offset + s8a->size() << " ]" << endl;
+		cout << "s8a2: " << "[ " << s8a2->offset << ", " << s8a2->offset + s8a2->size() << " ]" << endl;
+		cout << "s8a3: " << "[ " << s8a3->offset << ", " << s8a3->offset + s8a3->size() << " ]" << endl;
 	
 		it = m8b->at(5);
 		s8a2->insert(it, text_buffer, strlen(text_buffer));
@@ -59,14 +61,14 @@ int main (int argc, char* argv[])
 		cout << "After re-insert, the buffer contains: " << endl;
 		cout << *s8a << endl;
 
-		cout << "s8a: " << "[ " << s8a->offset_start << ", " << s8a->offset_end << " ]" << endl;
-		cout << "s8a2: " << "[ " << s8a2->offset_start << ", " << s8a2->offset_end << " ]" << endl;
-		cout << "s8a3: " << "[ " << s8a3->offset_start << ", " << s8a3->offset_end << " ]" << endl;
+		cout << "s8a: " << "[ " << s8a->offset << ", " << s8a->offset + s8a->size() << " ]" << endl;
+		cout << "s8a2: " << "[ " << s8a2->offset << ", " << s8a2->offset + s8a2->size() << " ]" << endl;
+		cout << "s8a3: " << "[ " << s8a3->offset << ", " << s8a3->offset + s8a3->size() << " ]" << endl;
 
 		delete s8a;
 		
 		cout << "*** Success ***" << endl << flush;
-
+		
 	} catch (const std::exception& e) {
 		cout << "Got here." << e.what() <<  endl << flush;
 		return 1;

@@ -4,7 +4,7 @@
 
 #define GRAPHVIZ_ID_MASK 0xffffff
 
-
+static int level = 0;
 
 namespace util {
 
@@ -13,14 +13,14 @@ using namespace std;
 
 
 template <typename T>
-std::ostream& operator<< (std::ostream& os, const util::detail::node<T>& n)
+std::ostream& operator<< (std::ostream& os, const node<T>& n)
 {
 	return n.printTo(os);
 }
 
 
-template<typename U>
-std::ostream& operator<< (std::ostream& os, skiparraylist<U>& b)
+template<typename T>
+std::ostream& operator<< (std::ostream& os, skiparraylist<T>& b)
 {
 	return os << *(b.root);
 }
@@ -38,24 +38,23 @@ std::ostream& skiparraylist<T>::dot (std::ostream& os) const
 }
 
 template<typename T>
-std::ostream& span_node<T>::dot (std::ostream& os) const
+std::ostream& inner<T>::dot (std::ostream& os) const
 {
-	
-	os << "node" << std::hex <<  ((unsigned long)(this) & GRAPHVIZ_ID_MASK)  << "[";
+	os << "inner" << std::hex <<  ((unsigned long)(this) & GRAPHVIZ_ID_MASK)  << "[";
 	os << "shape=folder, color=grey, ";
 	os << "label=\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
-	os << "start=" << std::dec << this->offset_start << ", ";
-	os << "end=" << std::dec << this->offset_end << "\"];" << endl;
+	os << "start=" << std::dec << this->offset << ", ";
+	os << "end=" << std::dec << this->offset + this->siz << ", ";
+	os << "size=" << std::dec << this->siz << "\"];" << endl;
 	
-	for (auto& n : children) {
-		n.dot(os);
+	for (auto n = child; n && n->parent == this; n = n->next()) {
+		n->dot(os);
 	}
-
-	if (children.size() > 0) {
+	
+	if (num_children() > 0) {
 		os << "{ rank=same";
-		for (auto& it : children) {
-			const node<T>& n = dynamic_cast<const node<T>&> (it);
-			os << "; node" << std::hex <<  ((unsigned long)(&n) & GRAPHVIZ_ID_MASK);
+		for (auto n = child; n && n->parent == this; n = n->next()) {
+			os << "; node" << std::hex <<  ((unsigned long)(n) & GRAPHVIZ_ID_MASK);
 		}
 		os << "}" << endl << dec;
 	}
@@ -70,22 +69,23 @@ std::ostream& span_node<T>::dot (std::ostream& os) const
 
 
 template<typename T>
-std::ostream& memory_node<T>::dot (std::ostream& os) const
+std::ostream& leaf<T>::dot (std::ostream& os) const
 {
 	os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << "[";
 	os << "shape=box3d, ";
+	os << "rank=min, ";
 	os << "label=" << "\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
-	os << "start=" << std::dec << this->offset_start << endl;
+	os << "start=" << std::dec << this->offset << endl;
 	os << "size=" << std::dec << this->siz <<"\"];"<< endl;
-
+	
 	if (this->parent) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
 			 << " -> node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK) << " ;" << endl;
 	}
 
-	if (this->next) {
+	if (this->next()) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
-			 << " -> node" << std::hex << ((unsigned long)(this->next) & GRAPHVIZ_ID_MASK);
+			 << " -> node" << std::hex << ((unsigned long)(this->next()) & GRAPHVIZ_ID_MASK);
 		os << "[color=red];" << endl;
 		
 	}
@@ -94,10 +94,10 @@ std::ostream& memory_node<T>::dot (std::ostream& os) const
 
 
 template<typename T>
-std::ostream& node<T>::printTo (std::ostream& os) const
+std::ostream& inner<T>::printTo (std::ostream& os) const
 {	
-	for (auto it = this->children.cbegin(); it != this->children.cend(); it++) {
-	  os << *it;
+	for (auto n = child; n && n->parent == this; n = n->next()) {
+	  n->printTo(os);
 	}
 	return os;
 }
@@ -107,7 +107,7 @@ template<typename T>
 std::ostream& leaf<T>::printTo (std::ostream& os) const
 {
 	for (int i=0; i < this->siz; i++) {
-		os << this->buf[i];
+		os << this->data[i];
 	}
 	return os;
 }

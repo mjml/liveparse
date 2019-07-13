@@ -50,7 +50,7 @@ void skiparraylist<T>::insert (int pos, const T* strdata, int length)
 {
 	if (root == nullptr) {
 		assert(pos == 0);
-		root = new node<T>();
+		root = new inner<T>();
 		auto l = new leaf<T>(root);
 		root->child = l;
 		l->parent = root;
@@ -68,10 +68,10 @@ void skiparraylist<T>::insert (const iterator<T>& it, const T* strdata, int leng
 		return;
 	}
 	
-	if (leaf<T>::capacity >= at->mnode->siz + length) {
-		it->leaf->insert(at, strdata, length);
+	if (leaf<T>::capacity >= it.leaf->siz + length) {
+		it.leaf->insert(it, strdata, length);
 	} else {
-		it->leaf->parent->insert(at, strdata, length);
+		it.leaf->parent->insert(it, strdata, length);
 	}
 	
 	while (root->parent != nullptr) {
@@ -88,7 +88,7 @@ template <typename T>
 void skiparraylist<T>::append (const T* strdata, int length)
 {
 	if (!root) {
-		root = new node<T>();
+		root = new inner<T>();
 	}
 	int r = root->append(strdata,length);
 	
@@ -117,10 +117,10 @@ void skiparraylist<T>::remove (int from, int to)
 	root->remove(from,to,&ctx);
 	
 	if (ctx.from || ctx.to) {
-		node<T>::rebalance_after_remove(ctx.from,ctx.to,&ctx);
+		//node<T>::rebalance_after_remove(ctx.from,ctx.to,&ctx);
 	}
 	
-	node<T>::rebalance_upward(ctx.subroot);
+	//node<T>::rebalance_upward(ctx.subroot);
 	node<T>* bottom = nullptr;
 	
 	if (ctx.from) {

@@ -2,12 +2,12 @@
 
 
 // Set to a page size
-#ifndef MEMORY_NODE_CAPACITY
-#define MEMORY_NODE_CAPACITY 4096
+#ifndef LEAF_CAPACITY
+#define LEAF_CAPACITY 4096
 #endif
 
-#ifndef SPAN_NODE_FANOUT
-#define SPAN_NODE_FANOUT 3
+#ifndef NODE_FANOUT
+#define NODE_FANOUT 3
 #endif
 
 #ifdef DEBUG_SKIPARRAYLIST
@@ -17,8 +17,9 @@
 #endif
 
 namespace util::detail {
-template<typename T> class span_node;
-template<typename T> class memory_node;
+template<typename T> class node;
+template<typename T> class inner;
+template<typename T> class leaf;
 }
 
 #include <boost/intrusive/list.hpp>
@@ -65,10 +66,10 @@ public:
 	
 	std::ostream& dot (std::ostream& os) const;
 	
-	friend std::ostream& operator<<<> (std::ostream& os, skiparraylist<T>& tree);
+	friend std::ostream& operator<<<> (std::ostream& os, skiparraylist<T>& skip);
 	
 PROTECTED:
-	node<T>* root;
+	inner<T>* root;
 		
 };
 
