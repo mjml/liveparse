@@ -18,19 +18,30 @@ using namespace util::detail;
 
 bool compare (const std::string& truth, skiparraylist<char>& tb);
 
-void dot_it (skiparraylist<char>& tb, std::string fn) {
+skiparraylist<char> tb;
+
+void dot_it (skiparraylist<char>& mytb, std::string fn) {
 	fstream dot6a;
 	dot6a.open(fn.c_str(), ios_base::out);
-  tb.dot(dot6a);
+  mytb.dot(dot6a);
 	dot6a.close();	
 }
+
+void dot_it2 (const char* szfn) {
+	std::string fn(szfn);
+	fstream dot6a;
+	dot6a.open(fn.c_str(), ios_base::out);
+  ::tb.dot(dot6a);
+	dot6a.close();	
+}
+
+
 
 int main (int argc, char* argv[]) {
 	
 	string truth;
-	skiparraylist<char> tb;
 	
-	string s("This is a very long string.");
+	string s("This is a very long string that I made up to make these tests work. ");
 	int n = s.size();
 	
 	/**
@@ -57,6 +68,7 @@ int main (int argc, char* argv[]) {
 	
 	dot_it(tb, "test6b.dot");
 
+	cout << "n=" << n << endl;
 	/**
 	 * Step three: perform a sequence of remove-insert steps at varying positions and lengths, comparing equality at each step.
 	 */
@@ -67,8 +79,9 @@ int main (int argc, char* argv[]) {
 		for (int j = 1; j < 30; j++ ) {
 			x = x * k + 1;
 			x = x % truth.size();
-			len = j;
-
+			len = std::min((int)(n - ((x+k)%n)), j);
+			
+			//                tgt pos        src pos          length
 			cout << "insert(" << x << "," << (x+k)%n << "," << len << ")  " << flush;
 			truth.insert(x,&s[(x+k)%n],len);
 			tb.insert(x,&s[(x+k)%n],len);

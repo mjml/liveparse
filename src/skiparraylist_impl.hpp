@@ -51,9 +51,8 @@ void skiparraylist<T>::insert (int pos, const T* strdata, int length)
 	if (root == nullptr) {
 		assert(pos == 0);
 		root = new inner<T>();
-		auto l = new leaf<T>(root);
-		root->child = l;
-		l->parent = root;
+		auto l = new leaf<T>();
+		root->push_back(l);
 	}
 	auto it = at(pos);
 	insert(it, strdata, length);
@@ -68,16 +67,12 @@ void skiparraylist<T>::insert (const iterator<T>& it, const T* strdata, int leng
 		return;
 	}
 	
-	if (leaf<T>::capacity >= it.leaf->siz + length) {
-		it.leaf->insert(it, strdata, length);
-	} else {
-		it.leaf->parent->insert(it, strdata, length);
-	}
+	it.leaf->parent->insert(it, strdata, length);
 	
 	while (root->parent != nullptr) {
 		root = root->parent;
 	}
-
+	
 	#ifdef DEBUG_UTIL
 	root->check();
 	#endif
@@ -112,27 +107,46 @@ void skiparraylist<T>::remove (int from, int to)
 	if (to == from) { return; }
 	if (to < from)  { throw std::domain_error("Cannot remove with to < from"); }
 	
-	int initial_size = root->size();
-	subtree_context<T> ctx;
-	root->remove(from,to,&ctx);
-	
-	if (ctx.from || ctx.to) {
-		//node<T>::rebalance_after_remove(ctx.from,ctx.to,&ctx);
-	}
-	
-	//node<T>::rebalance_upward(ctx.subroot);
-	node<T>* bottom = nullptr;
-	
-	if (ctx.from) {
-		ctx.from->rebalance_after_insert(true);
-	}
-	if (ctx.to) {
-		ctx.to->rebalance_after_insert(true);
-	}
-	
-	if (to - from == initial_size) {
+	if (to - from == root->size()) {
 		if (root) delete root;
 		root = nullptr;
+		return;
+	}
+
+	subtree_context<T> ctx;
+	
+	root->remove(from,to,&ctx);
+	inner<T>::rebalance_after_remove(ctx.from->parent, ctx.to->parent);
+
+	if (ctx.from) {
+		auto fp = ctx.from->parent;
+		fp->fixup_child_extents();
+		fp->fixup_my_extents();
+		fp->fixup_ancestors_extents();
+	}
+
+	if (ctx.to) {
+		auto tp = ctx.to->parent;
+		tp->fixup_child_extents();
+		tp->fixup_my_extents();
+		tp->fixup_ancestors_extents();
+	}
+	
+	ctx.from->parent->rebalance_after_insert(true);
+	ctx.to->parent->rebalance_after_insert(true);
+	
+	// root compaction
+	while (root->num_children() == 1) {
+		auto oldroot = root;
+		auto inner_child = dynamic_cast<inner<T>*>(root->child);
+		if (inner_child) {
+			root = inner_child;
+			root->parent = nullptr;
+			oldroot->child = nullptr;
+			delete oldroot;
+		} else {
+			break;
+		}
 	}
 	
 	#ifdef DEBUG_UTIL

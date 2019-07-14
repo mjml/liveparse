@@ -47,31 +47,26 @@ int main (int argc, char* argv[])
 	
 	cout << "Memory node capacity is: " << leaf<char>::capacity << endl;
 	
-	(m8b->_next = m8c)->_next = m8d;
-	
 	s8a2->push_back(m8b);
 	s8a2->push_back(m8c);
 	s8a2->push_back(m8d);
-	m8b->parent = m8c->parent = m8d->parent = s8a2;
-	
 	s8a->push_back(s8a2);
 	s8a->push_back(s8a3);
-	s8a2->parent = s8a3->parent = s8a;
 	
 	s.root = s8a;
 	
 	auto it = m8b->at(0);
-	m8b->insert(it, text_buffer, strlen(text_buffer));
+	s.insert(it, text_buffer, strlen(text_buffer));
 	test_assert(m8b->offset == 0);
 	test_assert(m8b->size() == 12);
 	
 	it = m8c->at(0);
-	m8c->insert(it, text_buffer, strlen(text_buffer));
+	s.insert(it, text_buffer, strlen(text_buffer));
 	test_assert(m8c->offset == 12);
 	test_assert(m8c->size() == 12);
-
+	
 	it = m8d->at(0);
-	m8d->insert(it, text_buffer, strlen(text_buffer));
+	s.insert(it, text_buffer, strlen(text_buffer));
 	test_assert(m8d->offset == 24);
 	test_assert(m8d->size() == 12);
 
@@ -87,11 +82,13 @@ int main (int argc, char* argv[])
 	s.dot(dot4a);
 	dot4a.close();
 	
-	it = s8a->at(5);
+	it = s.at(5);
 	s.insert(it, long_buffer, strlen(long_buffer));
 
 	test_assert(m8b->offset == 0);
+#if LEAF_CAPACITY < 36
 	test_assert(m8b->_next != m8c);
+#endif
 	test_assert(m8c->offset == 55);
 	test_assert(m8c->size() == 12);
 	test_assert(m8d->offset == 67);

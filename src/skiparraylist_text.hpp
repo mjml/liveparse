@@ -11,7 +11,7 @@ namespace util {
 using namespace util::detail;
 using namespace std;
 
-
+	
 template <typename T>
 std::ostream& operator<< (std::ostream& os, const node<T>& n)
 {
@@ -31,8 +31,32 @@ std::ostream& skiparraylist<T>::dot (std::ostream& os) const
 {
 	os << "digraph { " << endl;
 	os << "node [ fontname=\"Liberation Sans\" ];" << endl;
-	os << "rankdir=BT;" << endl;
-	root->dot(os);
+	os << "rankdir=TB;" << endl;
+
+	node<T>* n = root;
+	do {
+		auto m = n;
+		do {
+			m->dot(os);
+			m = m->next();
+		} while (m);
+
+		os << "{ rank=same;" << endl;
+		m = n;
+		do {
+			os << "node" << std::hex << ((unsigned long)(m) & GRAPHVIZ_ID_MASK) << ";" << endl;
+			m = m->next();
+		} while (m);
+		os << "}" << endl;
+		
+		auto p = dynamic_cast<inner<T>*>(n);
+		if (p) {
+			n = p->child;
+		} else {
+			n = nullptr;
+		}
+	} while (n);
+
 	os << "}" << endl;
 	return os << dec;
 }
@@ -40,30 +64,35 @@ std::ostream& skiparraylist<T>::dot (std::ostream& os) const
 template<typename T>
 std::ostream& inner<T>::dot (std::ostream& os) const
 {
-	os << "inner" << std::hex <<  ((unsigned long)(this) & GRAPHVIZ_ID_MASK)  << "[";
+	os << "node" << std::hex <<  ((unsigned long)(this) & GRAPHVIZ_ID_MASK)  << "[";
 	os << "shape=folder, color=grey, ";
 	os << "label=\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
 	os << "start=" << std::dec << this->offset << ", ";
 	os << "end=" << std::dec << this->offset + this->siz << ", ";
 	os << "size=" << std::dec << this->siz << "\"];" << endl;
-	
-	for (auto n = child; n && n->parent == this; n = n->next()) {
-		n->dot(os);
-	}
-	
-	if (num_children() > 0) {
-		os << "{ rank=same";
-		for (auto n = child; n && n->parent == this; n = n->next()) {
-			os << "; node" << std::hex <<  ((unsigned long)(n) & GRAPHVIZ_ID_MASK);
-		}
-		os << "}" << endl << dec;
-	}
-		
+
 	if (this->parent) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
 			 << " -> node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK) << " ;" << endl;
 	}
+
+	if (this->child) {
+		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
+			 << " -> node" << std::hex << ((unsigned long)(this->child) & GRAPHVIZ_ID_MASK);
+		os << "[color=red];" << endl;
+	}
 	
+	if (this->next()) {
+		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
+			 << " -> node" << std::hex << ((unsigned long)(this->next()) & GRAPHVIZ_ID_MASK);
+		os << "[color=green];" << endl;
+	}
+	
+	if (this->prev()) {
+		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
+			 << " -> node" << std::hex << ((unsigned long)(this->prev()) & GRAPHVIZ_ID_MASK);
+		os << "[color=blue];" << endl;
+	}
 	return os << std::dec;
 }
 
@@ -80,14 +109,20 @@ std::ostream& leaf<T>::dot (std::ostream& os) const
 	
 	if (this->parent) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
-			 << " -> node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK) << " ;" << endl;
+			 << " -> node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK);
+		os << "[color=black];" << endl;
 	}
-
+	
 	if (this->next()) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
 			 << " -> node" << std::hex << ((unsigned long)(this->next()) & GRAPHVIZ_ID_MASK);
-		os << "[color=red];" << endl;
-		
+		os << "[color=green];" << endl;
+	}
+
+	if (this->prev()) {
+		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
+			 << " -> node" << std::hex << ((unsigned long)(this->prev()) & GRAPHVIZ_ID_MASK);
+		os << "[color=blue];" << endl;
 	}
 	return os << std::dec;
 }
