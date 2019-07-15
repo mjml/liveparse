@@ -1,4 +1,4 @@
 @cxxparams "-g -I.. -std=c++17"
 @ldparams -g
 @define LEAF_CAPACITY [ 72, 4096 ]
-@define DEBUG_TREEBUFFER 1
+@define DEBUG_UTIL 1

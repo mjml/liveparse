@@ -26,8 +26,8 @@ template<typename T>
 struct subtree_context
 {
 	inner<T>* subroot = nullptr;
-	leaf<T>* from = nullptr;
-	leaf<T>* to = nullptr;
+	inner<T>* from = nullptr;
+	inner<T>* to = nullptr;
 };
 
 namespace bi = boost::intrusive;
@@ -68,12 +68,6 @@ public:
 		if (to && from) {
 			assert(from->_next == to);
 			assert(to->_prev == from);
-		}
-		if (!to) {
-			std::cout << middle << "->to == nullptr" << std::endl;
-		}
-		if (!from) {
-			std::cout << middle << "->from == nullptr" << std::endl;
 		}
 		middle->parent = parent;
 		middle->_prev = from;
@@ -131,7 +125,7 @@ public:
 
 	void merge_small_nodes ();
 	void rebalance_after_insert (bool full_height);
-	static void rebalance_after_remove (inner<T>* left, inner<T>* right);
+	static void rebalance_after_remove (inner<T>* left, inner<T>* right, subtree_context<T>* ctx);
 	void rejoin (int nfrom, int nto, node<T>* to, subtree_context<T>* ctx);
 
 	int num_children () const;
@@ -244,7 +238,7 @@ public:
 	}
 
 	
-	void fixup_my_extents ();
+	void fixup_my_size ();
 	void fixup_child_extents ();
 	void fixup_ancestors_extents ();
 
@@ -316,16 +310,19 @@ bool inner<T>::check() const
 	auto cur = this->child->_next;
 	int size_count = 0;
 	
-	while (cur->parent == last->parent) {
+	while (cur && cur->parent == last->parent) {
 		size_count += cur->size();
 		last = last->_next;
 		cur = cur->_next;
 	}
 	
 	cur = this->child;
-	while (cur->parent == this) {
+	while (cur && cur->parent == this) {
 		CHECK_AND_THROW( cur->check() );
+		cur = cur->_next;
 	}
+
+	CHECK_AND_THROW(this->child->offset == 0);
 	return b;
 }
 
@@ -463,7 +460,7 @@ int leaf<T>::insert (const iterator<T>& at_, const T* strdata, int length)
 	
 	inserted += raw_insert(at,strdata,length,nullptr,nullptr);
 	
-	this->parent->fixup_my_extents();
+	this->parent->fixup_my_size();
 	this->parent->fixup_child_extents();	
 	this->parent->fixup_ancestors_extents();
 	
@@ -550,7 +547,7 @@ void inner<T>::rebalance_after_insert (bool full_height)
 			}
 			sib->offset = this->offset + this->siz;
 			sib->fixup_child_extents();
-			sib->fixup_my_extents();
+			sib->fixup_my_size();
 			
 			movn = (this->num_children() < (NODE_FANOUT * 2)) ? this->num_children() / 2 : NODE_FANOUT;
 		}
@@ -611,14 +608,6 @@ int leaf<T>::raw_insert (const iterator<T>& it, const T* strdata, int length, T*
 template <typename T>
 void inner<T>::remove (int from, int to, subtree_context<T>* ctx)
 {
-	// fast case: [from,to) spans this entire node, so remove all children
-	if (from <= 0 && to >= size()) {
-		clear_and_delete_children();
-		this->siz = 0;
-		return;
-	}
-	
-	// more general case
 	auto n = front_child();
 	bool in_overlap = false;
 	bool found_from = false;
@@ -633,12 +622,21 @@ void inner<T>::remove (int from, int to, subtree_context<T>* ctx)
 			n->remove(c-a,d-a,ctx);
 			
 			if (n->size() == 0) {
-				auto m = n->_next;
-				node<T>::unlink(n);
-				this->siz -= n->siz; // optional, will be recalculated later since the entire ancestor chain needs it too.
-				delete n;
-				n = m;
-				continue;
+				bool delete_n = true;
+				if (ctx->from == n) {
+					delete_n = false;;
+				}
+				if (ctx->to == n) {
+					delete_n = false;
+				}
+				if (delete_n) {
+					auto m = n->_next;
+					node<T>::unlink(n);
+					this->siz -= n->siz; // optional, will be recalculated later since the entire ancestor chain needs it too.
+					delete n;
+					n = m;
+					continue;
+				}
 			}
 		}
 		n = n->_next;
@@ -652,8 +650,12 @@ void inner<T>::remove (int from, int to, subtree_context<T>* ctx)
 template <typename T>
 void leaf<T>::remove (int from, int to, subtree_context<T>* ctx)
 {
-	if (from >= this->offset && from < this->siz) ctx->from = this;
-	if (to > this->offset && to <= this->siz) ctx->to = this;
+	if (from >= 0 && from < this->siz) {
+		ctx->from = this->parent;
+	}
+	if (to > 0 && to <= this->siz) {
+		ctx->to = this->parent;
+	}
 	from = std::max(0, from);
 	to = std::min(to, this->siz);
 	std::copy(data + to, data + this->siz, data + from);
@@ -661,22 +663,69 @@ void leaf<T>::remove (int from, int to, subtree_context<T>* ctx)
 }
 
 template<typename T>
-void inner<T>::rebalance_after_remove (inner<T>* left, inner<T>* right)
+void inner<T>::rebalance_after_remove (inner<T>* left, inner<T>* right, subtree_context<T>* ctx)
 {
-	inner<T>* next_left = left->parent;
-	inner<T>* next_right = right->parent;
+	inner<T>* next_left = left ? left->parent : nullptr;
+	inner<T>* next_right = right ? right->parent : nullptr;
+
+	if (right && right != left) {
+		auto rc = right->num_children();
+		if (rc > 1) {
+			right->fixup_child_extents();
+			right->fixup_my_size();
+		}
+		if (rc == 1) {
+			node<T>* only = nullptr;
+			if (right->prev()) {
+				only = right->pop_front();
+				next_left = right->prev()->parent;
+				right->prev()->push_back(only);
+				right->prev()->fixup_child_extents();
+				right->prev()->fixup_my_size();
+				rc = 0;
+			} else if (right->next()) {
+				only = right->pop_front();
+				next_right = right->next()->parent;
+				right->next()->push_front(only);
+				right->next()->fixup_child_extents();
+				right->next()->fixup_my_size();
+				rc = 0;
+			} else {
+				// This can happen i.e. at the root or inside a remnant "long chain"
+				// These are the only 1's left in the tree after this recursion and will be removed afterward.
+			}
+		}
+		if (rc == 0) {
+			node<T>::unlink(right);
+			delete right;
+		}
+	}
 	
 	if (left) {
 		auto lc = left->num_children();
+		if (lc > 1) {
+			left->fixup_child_extents();
+			left->fixup_my_size();
+		}
 		if (lc == 1) {
-			auto only = left->pop_front();
+			node<T>* only = nullptr;
 			if (left->next()) {
-				left->next()->parent->push_front(only);
+				only = left->pop_front();
+				next_right = left->next()->parent;
+				left->next()->push_front(only);
+				left->next()->fixup_child_extents();
+				left->next()->fixup_my_size();
+				lc = 0;
 			} else if (left->prev()) {
-				left->prev()->parent->push_back(only);
+				only = left->pop_front();
+				next_left = left->prev()->parent;
+				left->prev()->push_back(only);
+				left->prev()->fixup_child_extents();
+				left->prev()->fixup_my_size();
+				lc = 0;
+			} else {
+				// as above
 			}
-			node<T>::unlink(left);
-			delete left;
 		}
 		if (lc == 0) {
 			node<T>::unlink(left);
@@ -684,25 +733,8 @@ void inner<T>::rebalance_after_remove (inner<T>* left, inner<T>* right)
 		}
 	}
 	
-	if (right && right != left) {
-		auto rc = right->num_children();
-		if (rc == 1) {
-			auto only = right->pop_front();
-			if (right->next()) {
-				right->next()->parent->push_back(only);
-			} else if (right->prev()) {
-				right->prev()->parent->push_back(only);
-			}
-			node<T>::unlink(right);
-			delete right;
-		} else if (rc == 0) {
-			node<T>::unlink(right);
-			delete right;
-		}
-	}
-	
 	if (next_left || next_right) {
-		rebalance_after_remove(next_left, next_right);
+		rebalance_after_remove(next_left, next_right, ctx);
 	}
 	
 }
@@ -721,7 +753,7 @@ void inner<T>::merge_small_nodes ()
 		}
 		node<T>::unlink(sib);
 		this->fixup_child_extents();
-		this->fixup_my_extents();
+		this->fixup_my_size();
 	}
 }
 
@@ -742,7 +774,7 @@ void node<T>::fixup_all_siblings_extents()
 
 
 template <typename T>
-void inner<T>::fixup_my_extents ()
+void inner<T>::fixup_my_size ()
 {
 	int sz = 0;
 	for (auto n = child; n && n->parent == this; n = n->_next) {
@@ -768,12 +800,12 @@ template <typename T>
 void inner<T>::fixup_ancestors_extents ()
 {
 	inner<T>* ma = this;
-	ma->fixup_my_extents();
+	ma->fixup_my_size();
 	while (ma) {
 		inner<T>* grandma = ma->parent;
 		if (grandma != nullptr) {
  			ma->fixup_all_siblings_extents();
-			grandma->fixup_my_extents();
+			grandma->fixup_my_size();
 		}
 		ma = grandma;
 	}

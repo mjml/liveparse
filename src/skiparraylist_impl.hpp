@@ -116,25 +116,9 @@ void skiparraylist<T>::remove (int from, int to)
 	subtree_context<T> ctx;
 	
 	root->remove(from,to,&ctx);
-	inner<T>::rebalance_after_remove(ctx.from->parent, ctx.to->parent);
-
-	if (ctx.from) {
-		auto fp = ctx.from->parent;
-		fp->fixup_child_extents();
-		fp->fixup_my_extents();
-		fp->fixup_ancestors_extents();
-	}
-
-	if (ctx.to) {
-		auto tp = ctx.to->parent;
-		tp->fixup_child_extents();
-		tp->fixup_my_extents();
-		tp->fixup_ancestors_extents();
-	}
 	
-	ctx.from->parent->rebalance_after_insert(true);
-	ctx.to->parent->rebalance_after_insert(true);
-	
+	inner<T>::rebalance_after_remove(ctx.from, ctx.to, &ctx);
+
 	// root compaction
 	while (root->num_children() == 1) {
 		auto oldroot = root;
