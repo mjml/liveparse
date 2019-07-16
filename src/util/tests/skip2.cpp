@@ -1,5 +1,5 @@
 /**
- * @cxxparams "-g -I.. -std=c++17"
+ * @cxxparams "-g -I../.. -std=c++17"
  * @ldparams -g
  * @define MEMORY_NODE_SIZE 4096
  **/
@@ -11,7 +11,7 @@
 
 #define DEBUG_SKIPARRAYLIST
 
-#include "skiparraylist.hpp"
+#include "util/skiparraylist.hpp"
 
 using namespace std;
 using namespace util;

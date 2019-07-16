@@ -10,7 +10,7 @@
 #include <sstream>
 #include <fstream>
 #include <testmatrix.h>
-#include "skiparraylist.hpp"
+#include "util/skiparraylist.hpp"
 
 using namespace std;
 using namespace util;
