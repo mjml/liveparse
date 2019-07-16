@@ -55,7 +55,7 @@ public:
 	virtual void remove (int from, int to, subtree_context<T>* ctx) = 0;
 	virtual bool check() const = 0;
 	virtual std::ostream& printTo (std::ostream& os) const = 0;
-	virtual std::ostream& dot (std::ostream& os) const = 0;
+	virtual std::ostream& dot (std::ostream& os, offset_type ofs) const = 0;
 
 	virtual node<T>* next() { return _next; }
 	virtual node<T>* prev() { return _prev; }
@@ -121,7 +121,7 @@ public:
 	void remove (int from, int to, subtree_context<T>* ctx);
 	bool check() const;
 	std::ostream& printTo (std::ostream& os) const;
-	std::ostream& dot (std::ostream& os) const;
+	std::ostream& dot (std::ostream& os, offset_type ofs) const;
 
 	void merge_small_nodes ();
 	void rebalance_after_insert (bool full_height);
@@ -143,7 +143,32 @@ public:
 		}
 		return n;
   };
+
+	template<typename N>
+	void adopt_forward (N* n) {
+		auto oldparent = n->parent;
+		assert(oldparent == prev());
+		if (oldparent->child == n) {
+			oldparent->child = nullptr;
+		}
+		n->parent = this;
+		this->child = n;
+		// no updating of n->prev, n->next -- this node is already linked laterally
+	}
 	
+	template<typename N>
+	void adopt_backward (N* n) {
+		auto oldparent = n->parent;
+		assert(oldparent == next());
+		assert(oldparent->child == n);
+		if (n->next() && n->next()->parent == oldparent) {
+			oldparent->child = n->next();
+		} else {
+			oldparent->child = nullptr;
+		}
+		n->parent = this;
+		// no updating of n->prev, n->next -- this node is already linked laterally
+	}
 	
 	template<typename N>
 	void push_front (N* n) {
@@ -269,7 +294,7 @@ public:
 	int append (const T* strdata, int length);
 	void remove (int from, int to, subtree_context<T>* ctx);
 	std::ostream& printTo (std::ostream& os) const;
-	std::ostream& dot (std::ostream& os) const;
+	std::ostream& dot (std::ostream& os, offset_type ofs) const;
 	bool check() const;
 
 	leaf<T>* prev() const { return reinterpret_cast<leaf<T>*>(this->_prev); }
@@ -321,6 +346,8 @@ bool inner<T>::check() const
 		CHECK_AND_THROW( cur->check() );
 		cur = cur->_next;
 	}
+
+	CHECK_AND_THROW(this->num_children() <= NODE_FANOUT);
 
 	CHECK_AND_THROW(this->child->offset == 0);
 	return b;
@@ -543,7 +570,6 @@ void inner<T>::rebalance_after_insert (bool full_height)
 			for (int i=0; i < movn; i++) {
 				auto last = pop_back();
 				sib->push_front(last);
-				assert(sib->child->_prev->offset != 0);
 			}
 			sib->offset = this->offset + this->siz;
 			sib->fixup_child_extents();
@@ -668,68 +694,55 @@ void inner<T>::rebalance_after_remove (inner<T>* left, inner<T>* right, subtree_
 	inner<T>* next_left = left ? left->parent : nullptr;
 	inner<T>* next_right = right ? right->parent : nullptr;
 
-	if (right && right != left) {
-		auto rc = right->num_children();
-		if (rc > 1) {
-			right->fixup_child_extents();
-			right->fixup_my_size();
-		}
-		if (rc == 1) {
-			node<T>* only = nullptr;
-			if (right->prev()) {
-				only = right->pop_front();
-				next_left = right->prev()->parent;
-				right->prev()->push_back(only);
-				right->prev()->fixup_child_extents();
-				right->prev()->fixup_my_size();
-				rc = 0;
-			} else if (right->next()) {
-				only = right->pop_front();
-				next_right = right->next()->parent;
-				right->next()->push_front(only);
-				right->next()->fixup_child_extents();
-				right->next()->fixup_my_size();
-				rc = 0;
-			} else {
-				// This can happen i.e. at the root or inside a remnant "long chain"
-				// These are the only 1's left in the tree after this recursion and will be removed afterward.
+	int lc = left->num_children();
+	int rc = (left==right) ? lc : right->num_children();
+	
+	if (left == right) {
+		if (lc == 1) {
+			auto only = left->front_child();
+			if (left->next()) {
+				right = left->next();
+				rc = right->num_children();
+				next_right = right->parent;
+			} else if (left->prev()) {
+				left = left->prev();
+				lc = left->num_children();
+				next_left = left->parent;
+		  } else {
+				// this can happen near the root for "remnant chains".
 			}
 		}
+	} 
+
+	if (left != right) {
+		if ((lc==1 && rc==3) || (rc==1 && lc>0 && lc<3)) { // shift-left condition according to table
+			auto node = right->front_child();
+			left->adopt_backward(node);
+			rc--; lc++;
+		} else if ((lc==3 && rc==1) || (lc==1 && rc==2)) { // shift-right condition according to table
+			auto node = left->back_child();
+			right->adopt_forward(node);
+			lc--; rc++;
+		}
+	} else {
+		// again, this happens in the remnant chain case.
+	}
+	
+	if (lc == 0) {
+		node<T>::unlink(left);
+		delete left;
+	} else {
+		left->fixup_child_extents();
+		left->fixup_my_size();
+	}
+
+	if (left != right) {
 		if (rc == 0) {
 			node<T>::unlink(right);
 			delete right;
-		}
-	}
-	
-	if (left) {
-		auto lc = left->num_children();
-		if (lc > 1) {
-			left->fixup_child_extents();
-			left->fixup_my_size();
-		}
-		if (lc == 1) {
-			node<T>* only = nullptr;
-			if (left->next()) {
-				only = left->pop_front();
-				next_right = left->next()->parent;
-				left->next()->push_front(only);
-				left->next()->fixup_child_extents();
-				left->next()->fixup_my_size();
-				lc = 0;
-			} else if (left->prev()) {
-				only = left->pop_front();
-				next_left = left->prev()->parent;
-				left->prev()->push_back(only);
-				left->prev()->fixup_child_extents();
-				left->prev()->fixup_my_size();
-				lc = 0;
-			} else {
-				// as above
-			}
-		}
-		if (lc == 0) {
-			node<T>::unlink(left);
-			delete left;
+		} else  {
+			right->fixup_child_extents();
+			right->fixup_my_size();
 		}
 	}
 	

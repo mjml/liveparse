@@ -35,9 +35,11 @@ std::ostream& skiparraylist<T>::dot (std::ostream& os) const
 
 	node<T>* n = root;
 	do {
+		int ofs = 0;
 		auto m = n;
 		do {
-			m->dot(os);
+			m->dot(os,ofs);
+			ofs += m->size();
 			m = m->next();
 		} while (m);
 
@@ -62,20 +64,21 @@ std::ostream& skiparraylist<T>::dot (std::ostream& os) const
 }
 
 template<typename T>
-std::ostream& inner<T>::dot (std::ostream& os) const
+std::ostream& inner<T>::dot (std::ostream& os, offset_type ofs) const
 {
 	os << "node" << std::hex <<  ((unsigned long)(this) & GRAPHVIZ_ID_MASK)  << "[";
 	os << "shape=folder, color=grey, ";
 	os << "label=\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
 	os << "start=" << std::dec << this->offset << ", ";
 	os << "end=" << std::dec << this->offset + this->siz << ", ";
-	os << "size=" << std::dec << this->siz << "\"];" << endl;
+	os << "size=" << std::dec << this->siz << ", ";
+	os << "abs=" << std::dec << ofs << "\"];" << endl;
 
 	if (this->parent) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
 			 << " -> node" << std::hex << ((unsigned long)(this->parent) & GRAPHVIZ_ID_MASK) << " ;" << endl;
 	}
-
+	
 	if (this->child) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)
 			 << " -> node" << std::hex << ((unsigned long)(this->child) & GRAPHVIZ_ID_MASK);
@@ -98,14 +101,15 @@ std::ostream& inner<T>::dot (std::ostream& os) const
 
 
 template<typename T>
-std::ostream& leaf<T>::dot (std::ostream& os) const
+std::ostream& leaf<T>::dot (std::ostream& os, offset_type ofs) const
 {
 	os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << "[";
 	os << "shape=box3d, ";
 	os << "rank=min, ";
 	os << "label=" << "\"" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK) << endl;
 	os << "start=" << std::dec << this->offset << endl;
-	os << "size=" << std::dec << this->siz <<"\"];"<< endl;
+	os << "size=" << std::dec << this->siz << endl;
+	os << "abs=" << std::dec << ofs <<"\"];"<< endl;
 	
 	if (this->parent) {
 		os << "node" << std::hex << ((unsigned long)(this) & GRAPHVIZ_ID_MASK)

@@ -119,6 +119,10 @@ void skiparraylist<T>::remove (int from, int to)
 	
 	inner<T>::rebalance_after_remove(ctx.from, ctx.to, &ctx);
 
+	while (root->parent != nullptr) {
+		root = root->parent;
+	}
+	
 	// root compaction
 	while (root->num_children() == 1) {
 		auto oldroot = root;
