@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include <iostream>
@@ -22,7 +23,11 @@ std::ostream& operator<< (std::ostream& os, const node<T>& n)
 template<typename T>
 std::ostream& operator<< (std::ostream& os, skiparraylist<T>& b)
 {
-	return os << *(b.root);
+	if (b.root) {
+		return os << *(b.root);
+	} else {
+		return os;
+	}
 }
 
 
