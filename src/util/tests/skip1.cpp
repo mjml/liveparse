@@ -5,7 +5,7 @@
 #include <cassert>
 #include <iostream>
 #include <string.h>
-
+#include <testmatrix.h>
 
 #define DEBUG_SKIPARRAYLIST
 #include "util/skiparraylist.hpp"
@@ -16,6 +16,8 @@ using namespace std;
 
 int main (int argc, char* argv[])
 {
+	report_executable_parameters();
+	
 	auto m8b = new leaf<char>;
 	auto m8c = new leaf<char>;
 	auto m8d = new leaf<char>;
@@ -65,7 +67,7 @@ int main (int argc, char* argv[])
 
 	delete s8a;
 		
-	cout << "*** Success ***" << endl << flush;
-		
+	report_success();
+	
 	return 0;
 }

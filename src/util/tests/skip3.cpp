@@ -37,14 +37,17 @@ void dot_it2 (const char* szfn) {
 
 
 
-int main (int argc, char* argv[]) {
+int main (int argc, char* argv[])
+{
+
+	report_executable_parameters();
 	
 	string truth;
 	
 	string s("This is a very long string that I made up to make these tests work. "
 					 "The veracity of the implementation depends on a wide range of testing inputs. ");
 	int n = s.size();
-	
+
 	/**
 	 * Step one: populate truth and tb with the same characters and test if they are equal.
 	 */
@@ -57,7 +60,7 @@ int main (int argc, char* argv[]) {
 
 	compare(truth,tb);
 	
-	dot_it(tb, "test6a.dot");
+	dot_it(tb, "skip3a.dot");
 	
 	
 	/**
@@ -67,7 +70,7 @@ int main (int argc, char* argv[]) {
 	truth.erase(5,12-5);
 	compare(truth,tb);
 	
-	dot_it(tb, "test6b.dot");
+	dot_it(tb, "skip3b.dot");
 
 	cout << "n=" << n << endl;
 	
@@ -88,7 +91,7 @@ int main (int argc, char* argv[]) {
 			cout << "insert(" << p << "," << q << "," << len << ")  " << flush;
 			truth.insert(p,&s[q],len);
 			tb.insert(p,&s[q],len);
-			dot_it(tb, "test6c.dot");
+			dot_it(tb, "skip3c.dot");
 			compare(truth,tb);
 		}
 		cout << "remove mode" << endl << flush;
@@ -101,7 +104,7 @@ int main (int argc, char* argv[]) {
 			cout << "remove(" << p << "," << len << ")  " << flush;
 			truth.erase(p,len);
 		  tb.remove(p,p+len);
-			dot_it(tb, "test6d.dot");
+			dot_it(tb, "skip3d.dot");
 			compare(truth,tb);
 		}
 	}
@@ -134,7 +137,8 @@ int main (int argc, char* argv[]) {
 		throw_exception_for_bad_insert = true;
 	}
 	test_assert(throw_exception_for_bad_insert == true);
-	
+
+	report_success();
 }
 
 

@@ -19,6 +19,8 @@ using namespace util::detail;
 
 int main (int argc, char* argv[])
 {
+	report_executable_parameters();
+	
 	skiparraylist<char> tree;
 	auto *s = new inner<char>;
 	auto *m = new leaf<char>;
@@ -40,7 +42,7 @@ int main (int argc, char* argv[])
 	m->printTo(cout);
 	cout << endl << flush;
 
-	cout << "Success." << endl;
-		
+	report_success();
+	
 	return 0;
 }
