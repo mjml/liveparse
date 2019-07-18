@@ -1,5 +1,5 @@
 /**
- * @cxxparams "-g -I.. -std=c++17"
+ * @cxxparams "-g -I../.. -std=c++17"
  * @ldparams -g
  * @define MEMORY_NODE_SIZE 4096
  **/
@@ -7,23 +7,26 @@
 #include <cassert>
 #include <iostream>
 #include <string.h>
+#include <testmatrix.h>
 
-#define DEBUG_TREEBUFFER
+#define DEBUG_SKIPARRAYLIST
 
-#include "tree_buffer.hpp"
+#include "util/skiparraylist.hpp"
 
 using namespace std;
-using namespace treebuffer;
-using namespace treebuffer::detail;
+using namespace util;
+using namespace util::detail;
 
 int main (int argc, char* argv[])
 {
-	tree_buffer<char> tree;
-	auto *s = new span_node<char>;
-	auto *m = new memory_node<char>;
-
+	report_executable_parameters();
+	
+	skiparraylist<char> tree;
+	auto *s = new inner<char>;
+	auto *m = new leaf<char>;
+	
 	tree.root = s;
-	s->children.push_back(*m);
+	s->push_back(m);
 	m->parent = s;
 	
 	char text_buffer[] = "Test string.";
@@ -39,7 +42,7 @@ int main (int argc, char* argv[])
 	m->printTo(cout);
 	cout << endl << flush;
 
-	cout << "Success." << endl;
-		
+	report_success();
+	
 	return 0;
 }
