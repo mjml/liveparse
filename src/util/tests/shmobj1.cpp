@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include <algorithm>
 #include <iostream>
-#include "util/shmobj.hpp"
+#include "util/addrscheme.hpp"
+#include "util/shmallocator.hpp"
 
 using namespace util;
 
@@ -32,7 +33,7 @@ public:
 	
 public:
 	int fav;
-	char arr[43];
+	char arr[7];
 	uint64_t x;
 	float y;
 };
@@ -78,8 +79,30 @@ int main ()
 	
 	std::cout << "f(a3) = " << f(a3) << std::endl;
 
-	shmfixedsegment<A,4096> segment;
+	shmfixedsegment<A> segment;
+
+	std::cout << std::hex << &segment << std::endl;
+
+	void* ptr = &segment;
+
+
+	std::cout << "region_id: 0x" << std::hex << pool_addr_traits<>::regionid(ptr) << std::endl;
+	std::cout << "pool_id: 0x" << std::hex << pool_addr_traits<>::poolid(ptr) << std::endl;
+	std::cout << "segment_id: 0x" << std::hex << pool_addr_traits<>::segmentid(ptr) << std::endl;
+	std::cout << "offset: 0x" << std::hex << pool_addr_traits<>::offset(ptr) << std::endl;
+	std::cout << std::dec;
 	
+	std::cout << "regionid_t is " << typeid(pool_addr_traits<>::regionid(ptr)).name() << std::endl;
+	std::cout << "poolid_t is " << typeid(pool_addr_traits<>::poolid(ptr)).name() << std::endl;
+	std::cout << "segmentid_t is " << typeid(pool_addr_traits<>::segmentid(ptr)).name() << std::endl;
+	std::cout << "offset_t is " << typeid(pool_addr_traits<>::offset(ptr)).name() << std::endl;
+
+	std::cout << std::hex <<
+		
+		(((0x1234567890abcdef) & (((1L << 32)-1)) << 8) >> 8)
+
+						<< std::endl;
+		
 	return 0;
 }
 
