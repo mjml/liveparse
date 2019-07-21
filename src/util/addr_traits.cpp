@@ -2,5 +2,5 @@
 
 #include "shmallocator.hpp"
 #include "skiparraylist.hpp"
-#include "addrscheme.hpp"
+#include "addr_traits.hpp"
 
