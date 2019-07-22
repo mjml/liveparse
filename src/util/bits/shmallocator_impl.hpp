@@ -5,9 +5,8 @@
 namespace util
 {
 
-
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init_or_attach (typename addr_traits::poolid_t poolid)
+shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init_or_attach (uint64_t poolid)
 {
 	// 
 	
@@ -15,18 +14,19 @@ shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init_or_attach (type
 
 
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init (typename addr_traits::poolid_t poolid)
+shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init (uint64_t poolid)
 {
-	// 
+	// 1. map space for segbits
+	
 	
 }
 
 
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::attach (typename addr_traits::poolid_t poolid)
+shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::attach (uint64_t poolid)
 {
 	// 
-
+	
 	
 }
 

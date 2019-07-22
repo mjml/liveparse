@@ -5,10 +5,25 @@
 #include <stdint.h>
 #include <algorithm>
 #include <iostream>
+#include <string>
+#include <typeinfo>
+#include <cstdlib>
+#include <memory>
+#include <cxxabi.h>
+#include <iomanip>
 #include "util/addr_traits.hpp"
 #include "util/shmallocator.hpp"
 
 using namespace util;
+
+std::string demangle (const char* name) {
+	int status = -4;
+	std::unique_ptr<char, void(*)(void*)> res {
+																						 abi::__cxa_demangle(name,NULL,NULL,&status),
+																						 std::free
+	};
+	return (status==0) ? res.get() : name;
+}
 
 class A
 {
@@ -64,40 +79,45 @@ typedef pool_addr_traits<0x1004,16,12,8,12> shglobal4;
 
 int main ()
 {
+	using namespace std;
+	
 	A a1;
 	A a2(a1);
 	a2.x = 123;
 	
-	std::cout << "a1 is " << a1 << std::endl;
-	std::cout << "a2 is " << a2 << std::endl;
+	cout << "a1 is " << a1 << endl;
+	cout << "a2 is " << a2 << endl;
 	
 	auto sa = new shmobj<B>();
 	auto &ra = *sa;
 	
-	std::cout << "ra is " << (*ra) << std::endl;
-	std::cout << "f(ra) = " << f(ra) << std::endl;
+	cout << "ra is " << (*ra) << endl;
+	cout << "f(ra) = " << f(ra) << endl;
 	
 	shmobj<A> &a3 = reinterpret_cast<shmobj<A>&>(a2);
 	
-	std::cout << "f(a3) = " << f(a3) << std::endl;
+	cout << "f(a3) = " << f(a3) << endl;
 	
-	void* ptr = (void*)0x1004abcdefL;
+	void* ptr = (void*)0x100489abcdefL;
+
+	cout << hex << ptr << endl;
+
+	cout << hex << setfill('0');
+	cout << "region_id: 0x" << std::setw(shglobal4::regionid_bits / 8) << (uint32_t)shglobal4::regionid(ptr) << endl;
+	cout << "pool_id: 0x" << setw(shglobal4::poolid_bits / 8) << (uint32_t)shglobal4::poolid(ptr) << endl;
+	cout << "segment_id: 0x" << setw(shglobal4::segmentid_bits / 8) << (uint32_t)shglobal4::segmentid(ptr) << endl;
+	cout << "offset: 0x" << setw(shglobal4::offset_bits / 8) << (uint32_t)shglobal4::offset(ptr) << endl;
+	cout << dec << setfill(' ');
+	
+	cout << "regionid_t is " << demangle(typeid(shglobal4::regionid(ptr)).name()) << endl;
+	cout << "poolid_t is " << demangle(typeid(shglobal4::poolid(ptr)).name()) << endl;
+	cout << "segmentid_t is " << demangle(typeid(shglobal4::segmentid(ptr)).name()) << endl;
+	cout << "offset_t is " << demangle(typeid(shglobal4::offset(ptr)).name()) << endl;
 
 	//auto& pool = shmfixedpool<A,shglobal4>::init_or_attach(0);
-	
-	std::cout << std::hex << ptr << std::endl;
 
-	std::cout << "region_id: 0x" << std::hex << shglobal4::regionid(ptr) << std::endl;
-	std::cout << "pool_id: 0x" << std::hex << shglobal4::poolid(ptr) << std::endl;
-	std::cout << "segment_id: 0x" << std::hex << shglobal4::segmentid(ptr) << std::endl;
-	std::cout << "offset: 0x" << std::hex << shglobal4::offset(ptr) << std::endl;
-	std::cout << std::dec;
+	cout << hex << util::bits_to_mask(8,48-8) << endl;
 	
-	std::cout << "regionid_t is " << typeid(shglobal4::regionid(ptr)).name() << std::endl;
-	std::cout << "poolid_t is " << typeid(shglobal4::poolid(ptr)).name() << std::endl;
-	std::cout << "segmentid_t is " << typeid(shglobal4::segmentid(ptr)).name() << std::endl;
-	std::cout << "offset_t is " << typeid(shglobal4::offset(ptr)).name() << std::endl;
-
 	return 0;
 }
 

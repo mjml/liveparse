@@ -5,10 +5,20 @@
 
 namespace util {
 
-static constexpr int pointer_width = 8 * sizeof(void*);
-static constexpr int addr_width = 6 * sizeof(void*);
+static constexpr uint32_t pointer_width = 8 * sizeof(void*);
+static constexpr uint32_t addr_width = 6 * sizeof(void*); // x86_64 only uses 48/64 bits. damn!
 
-template<int B>
+static constexpr uint64_t bits_to_size (uint32_t bits) {
+	return 0x1L << bits;
+}
+
+
+static constexpr uint64_t bits_to_mask (uint32_t bitlength, uint32_t bitpos) {
+	return ((uint64_t)(0x1L << bitlength) - 0x1L) << bitpos;
+}
+
+
+template<uint64_t B>
 struct bit_storage
 {
 	typedef typename std::conditional<B <= 8, uint8_t,
@@ -20,24 +30,21 @@ struct bit_storage
 template<typename I>
 constexpr I bits(void *ptr64, uint64_t bitlength, uint64_t bitpos) {
 	static_assert(std::is_unsigned<I>::value, "The integer type used to capture this field should be unsigned.");
-	return (I)
-		(((uint64_t)(ptr64) & (((1L << bitlength) - 1L) << bitpos)) >> bitpos);
+	uint64_t mask = bits_to_mask(bitlength,bitpos);
+	I result = ((uint64_t)(ptr64) & mask) >> bitpos;
+	return result;
 }
 
 
-static constexpr uint64_t bits_to_size (int bits) {
-	return (0x1L << bits);
-}
-
-
-template<int RID, int RB>
+template<uint64_t RID, uint64_t RB>
 struct region_addr_traits
 {
 	typedef typename bit_storage<RB>::type regionid_t;
 	
-	constexpr static int rid = RID;
-	constexpr static int regionid_ofs = pointer_width - RB;
-	constexpr static int base_address () { return RID << regionid_ofs; }
+	static constexpr uint32_t regionid_bits = RB;
+	constexpr static uint64_t rid = RID;
+	constexpr static uint64_t regionid_ofs = pointer_width - RB;
+	constexpr static uint64_t base_address () { return RID << regionid_ofs; }
 	
 	static auto regionid (void* ptr) {
 		return util::bits<uint16_t>(ptr,RB,addr_width-RB);
@@ -45,24 +52,29 @@ struct region_addr_traits
 };
 
 
-template<int RID, int RB=8, int PB=12, int SB=16, int OB=12>
+template<uint64_t RID, uint32_t RB=8, uint32_t PB=12, uint32_t SB=16, uint32_t OB=12>
 struct pool_addr_traits : public region_addr_traits<RID,RB>
 {
 	static_assert(RB + PB + SB + OB == addr_width,
 								"An addressing format must have bit field widths that add up to the pointer width.");
-	
-	static constexpr int regionid_bits = RB;
-	static constexpr int poolid_bits = PB;
-	static constexpr int segmentid_bits = SB;
-	static constexpr int offsetid_bits = OB;
+
+	static constexpr uint32_t regionid_bits = RB;
+	static constexpr uint32_t poolid_bits = PB;
+	static constexpr uint32_t segmentid_bits = SB;
+	static constexpr uint32_t offset_bits = OB;
 	
 	static constexpr uint64_t regionid_space = bits_to_size(regionid_bits);
 	static constexpr uint64_t poolid_space = bits_to_size(poolid_bits);
 	static constexpr uint64_t segmentid_space = bits_to_size(segmentid_bits);
-	static constexpr uint64_t offsetid_space = bits_to_size(offsetid_bits);
+	static constexpr uint64_t offset_space = bits_to_size(offset_bits);
 	
-	static constexpr uint64_t segment_size = offsetid_space;
-	static constexpr uint64_t page_size = offsetid_space;
+	static constexpr uint64_t segment_size = offset_space;
+	static constexpr uint64_t page_size = offset_space;
+	
+	static constexpr uint64_t regionid_mask = bits_to_mask(regionid_bits, addr_width - regionid_bits);
+	static constexpr uint64_t poolid_mask = bits_to_mask(poolid_bits, segmentid_bits + offset_bits);
+	static constexpr uint64_t segmentid_mask = bits_to_mask(segmentid_bits, offset_bits);
+	static constexpr uint64_t offset_mask = bits_to_mask(offset_bits, 0);
 	
 	using regionid_t = typename region_addr_traits<RID,RB>::regionid_t;
 	
@@ -80,7 +92,7 @@ struct pool_addr_traits : public region_addr_traits<RID,RB>
 		return util::bits<segmentid_t>(ptr,SB,OB);
 	}
 	
-	static uint16_t offset (void* ptr) {
+	static auto offset (void* ptr) {
 		return util::bits<uint16_t>(ptr,OB,0);
 	}
 	

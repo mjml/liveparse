@@ -97,19 +97,18 @@ struct shmfixedpool
 		int ref_cnt;
 		int num_free;
 		int num_uncommitted;
-		segment_t* seghead;
-		segment_t* segtail;
 		free_meta* freehead;
 		free_meta* freetail;
 		std::shared_mutex mut;
+		uint8_t segbits[];
 	};
 	
 	shmfixedpool() = delete;
 	~shmfixedpool() = delete;
 
-	static self_t& init_or_attach (typename addr_traits::poolid_t poolid);
-	static self_t& init (typename addr_traits::poolid_t poolid);
-	static self_t& attach (typename addr_traits::poolid_t poolid);
+	static self_t& init_or_attach (uint64_t poolid);
+	static self_t& init (uint64_t poolid);
+	static self_t& attach (uint64_t poolid);
 	
 	static void detach (self_t& pool);
 	
@@ -118,6 +117,14 @@ struct shmfixedpool
 	T* allocate(std::size_t n);
 	
 	void deallocate (T* p, std::size_t) noexcept;
+
+	segment_t* base_address ();
+	
+	segment_t* find_segment ();
+
+	segment_t* alloc_segment ();
+
+	void free_segment (segment_t* seg);
 	
 };
 
