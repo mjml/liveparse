@@ -1,16 +1,20 @@
 #pragma once
 
+#include <memory>
+#include <cassert>
+
+
 namespace util
 {
 struct free_meta;
-template<typename T> class shmobj;
+template<typename T> union shmobj;
 template<typename T, typename addr_traits> class shmfixedsegment;
 template<typename T, typename addr_traits> class shmfixedpool;
 template<typename T, typename addr_traits> class shmallocator;
 }
 
 #include <shared_mutex>
-#include "addrscheme.hpp"
+#include "addr_traits.hpp"
 
 
 namespace util {
@@ -25,16 +29,13 @@ struct free_meta
 
 
 template<typename T>
-class shmobj : public free_meta
+union shmobj
 {
-public:
 	
-	shmobj() : free_meta(), obj() {}
+	shmobj() : obj() {}
 
 	template<typename U>
 	shmobj(U& other) : obj(other) {}
-
-public:
 
 	T& operator* () noexcept {
 		return obj;
@@ -50,17 +51,13 @@ public:
 		return (T&)(obj);
 	}
 	
-private:
-	union {
-		T obj;
-		free_meta meta;
-	};
-	
+	T obj;
+	free_meta meta;
 	
 };
 
 
-template<typename T, typename addr_traits = pool_addr_traits<>>
+template<typename T, typename addr_traits>
 struct shmfixedsegment 
 {
 	struct shmfixedsegment_header
@@ -76,9 +73,7 @@ struct shmfixedsegment
 		
 	};
 	
-	shmfixedsegment() : hdr(usable_space(), sizeof(T)) {
-		std::cout << "Creating segment for " << &hdr << " objects of size " << capacity() << std::endl;
-	}
+	shmfixedsegment() : hdr(usable_space(), sizeof(T)) { }
 	
 	constexpr static int usable_space() { return addr_traits::page_size - sizeof(shmfixedsegment_header); }
 	constexpr static int capacity()     { return usable_space() / sizeof(T); }
@@ -87,51 +82,47 @@ protected:
 	void init_objects();
 	
 	shmfixedsegment_header hdr;
-	char data [usable_space()];
+	uint8_t data [usable_space()];
 	
 };
 
 
-template<typename T, typename addr_traits = pool_addr_traits<>>
+template<typename T, typename addr_traits>
 struct shmfixedpool
 {
 	typedef shmfixedpool<T,addr_traits> self_t;
 	typedef shmfixedsegment<T,addr_traits> segment_t;
-
+	
 	struct shmfixedpool_header {
+		int ref_cnt;
 		int num_free;
-		segment_t* head;
-		segment_t* tail;
-		free_meta* head_free;
-		free_meta* tail_free;
+		int num_uncommitted;
+		segment_t* seghead;
+		segment_t* segtail;
+		free_meta* freehead;
+		free_meta* freetail;
 		std::shared_mutex mut;
 	};
 	
 	shmfixedpool() = delete;
 	~shmfixedpool() = delete;
-	
-	static void init_or_attach (int poolid);
-	static void detach ();
-	
-	static shmfixedpool_header* hdr = nullptr;
-};
 
-
-template<typename T, typename addr_traits>
-class shmallocator
-{
-	shmfixedpool<T,addr_traits>& pool;
+	static self_t& init_or_attach (typename addr_traits::poolid_t poolid);
+	static self_t& init (typename addr_traits::poolid_t poolid);
+	static self_t& attach (typename addr_traits::poolid_t poolid);
 	
-public:
-	typedef T value_type;
+	static void detach (self_t& pool);
 	
-	shmallocator(shmfixedpool<T,addr_traits>& _pool) : pool(_pool) {}
+	static shmfixedpool_header* hdr;
 	
 	T* allocate(std::size_t n);
 	
 	void deallocate (T* p, std::size_t) noexcept;
 	
 };
+
+template<typename T, typename addr_traits>
+typename shmfixedpool<T,addr_traits>::shmfixedpool_header* shmfixedpool<T,addr_traits>::hdr = nullptr;
 
 }
 

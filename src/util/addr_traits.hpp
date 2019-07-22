@@ -30,12 +30,14 @@ static constexpr uint64_t bits_to_size (int bits) {
 }
 
 
-template<int RB>
+template<int RID, int RB>
 struct region_addr_traits
 {
 	typedef typename bit_storage<RB>::type regionid_t;
-
+	
+	constexpr static int rid = RID;
 	constexpr static int regionid_ofs = pointer_width - RB;
+	constexpr static int base_address () { return RID << regionid_ofs; }
 	
 	static auto regionid (void* ptr) {
 		return util::bits<uint16_t>(ptr,RB,addr_width-RB);
@@ -43,8 +45,8 @@ struct region_addr_traits
 };
 
 
-template<int RB=4, int PB=20, int SB=12, int OB=12>
-struct pool_addr_traits : public region_addr_traits<RB>
+template<int RID, int RB=8, int PB=12, int SB=16, int OB=12>
+struct pool_addr_traits : public region_addr_traits<RID,RB>
 {
 	static_assert(RB + PB + SB + OB == addr_width,
 								"An addressing format must have bit field widths that add up to the pointer width.");
@@ -62,7 +64,7 @@ struct pool_addr_traits : public region_addr_traits<RB>
 	static constexpr uint64_t segment_size = offsetid_space;
 	static constexpr uint64_t page_size = offsetid_space;
 	
-	using regionid_t = typename region_addr_traits<RB>::regionid_t;
+	using regionid_t = typename region_addr_traits<RID,RB>::regionid_t;
 	
 	typedef typename bit_storage<PB>::type poolid_t;
 	

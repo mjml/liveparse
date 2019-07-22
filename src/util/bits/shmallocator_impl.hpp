@@ -1,11 +1,38 @@
 #pragma once
 
+#include <cassert>
+
 namespace util
 {
 
 
 template<typename T, typename addr_traits>
-void shmfixedpool<T, addr_traits>::init_or_attach (int poolid)
+shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init_or_attach (typename addr_traits::poolid_t poolid)
+{
+	// 
+	
+}
+
+
+template<typename T, typename addr_traits>
+shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::init (typename addr_traits::poolid_t poolid)
+{
+	// 
+	
+}
+
+
+template<typename T, typename addr_traits>
+shmfixedpool<T, addr_traits>& shmfixedpool<T, addr_traits>::attach (typename addr_traits::poolid_t poolid)
+{
+	// 
+
+	
+}
+
+
+template<typename T, typename addr_traits>
+void shmfixedpool<T, addr_traits>::detach (shmfixedpool<T, addr_traits>&)
 {
 	
 	
@@ -13,21 +40,27 @@ void shmfixedpool<T, addr_traits>::init_or_attach (int poolid)
 
 
 template<typename T, typename addr_traits>
-void shmfixedpool<T, addr_traits>::detach ()
+T* shmfixedpool<T,addr_traits>::allocate (std::size_t n)
 {
+	assert(n==1);
 	
+	//
 	
+	return nullptr;
 }
 
 
 template<typename T, typename addr_traits>
-T* shmallocator<T,addr_traits>::allocate (std::size_t n)
+void shmfixedpool<T,addr_traits>::deallocate (T* ptr, size_t s) noexcept
 {
-	if (n != 1) {
-		throw std::bad_alloc();
-	}
+	assert(addr_traits::regionid(ptr) == addr_traits::rid);
+	assert(s == 1);
+	int poolid = addr_traits::poolid(ptr);
+	
+	
+	
+	
 }
-
 
 
 }
