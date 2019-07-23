@@ -1,5 +1,4 @@
 /**
- * @module testfuncs.cpp
  * @include skiparraylist-defines
  **/
 
