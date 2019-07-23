@@ -43,12 +43,13 @@ struct region_addr_traits
 	
 	static constexpr uint32_t regionid_bits = RB;
 	constexpr static uint64_t rid = RID;
-	constexpr static uint64_t regionid_ofs = pointer_width - RB;
-	constexpr static uint64_t base_address () { return RID << regionid_ofs; }
+	constexpr static uint64_t regionid_ofs = addr_width - RB;
+	constexpr static uint64_t region_address () { return RID << regionid_ofs; }
 	
 	static auto regionid (void* ptr) {
-		return util::bits<uint16_t>(ptr,RB,addr_width-RB);
+		return util::bits<regionid_t>(ptr,RB,addr_width-RB);
 	}
+	
 };
 
 

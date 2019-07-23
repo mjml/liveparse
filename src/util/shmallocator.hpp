@@ -2,7 +2,7 @@
 
 #include <memory>
 #include <cassert>
-
+#include <stdio.h>
 
 namespace util
 {
@@ -92,44 +92,61 @@ struct shmfixedpool
 {
 	typedef shmfixedpool<T,addr_traits> self_t;
 	typedef shmfixedsegment<T,addr_traits> segment_t;
-	
-	struct shmfixedpool_header {
-		int ref_cnt;
-		int num_free;
-		int num_uncommitted;
-		free_meta* freehead;
-		free_meta* freetail;
-		std::shared_mutex mut;
-		uint8_t segbits[];
-	};
-	
-	shmfixedpool() = delete;
-	~shmfixedpool() = delete;
 
-	static self_t& init_or_attach (uint64_t poolid);
-	static self_t& init (uint64_t poolid);
-	static self_t& attach (uint64_t poolid);
+	using poolid_t = typename addr_traits::poolid_t;
 	
-	static void detach (self_t& pool);
+	constexpr static uint64_t segtable_size = addr_traits::segmentid_space >> 3;
 	
-	static shmfixedpool_header* hdr;
+	typedef struct header_s {
+		int ref_cnt = 0;
+		int num_free = 0;
+		int size = 0;
+		free_meta* freehead = nullptr;
+		free_meta* freetail = nullptr;
+		std::shared_mutex mut;
+		uint8_t segbits[segtable_size];
+		
+    header_s () = default;
+		~header_s () = default;
+		
+	} header_t;
+	
+	constexpr static uint64_t hdrsegs() {
+		return (sizeof(header_t) / addr_traits::segment_size) + 1;
+	}
+	
+	static self_t init_or_attach (poolid_t poolid);
+	static self_t init (poolid_t poolid);
+	static self_t attach (poolid_t poolid);
+	
+	static void detach (self_t pool);
 	
 	T* allocate(std::size_t n);
 	
 	void deallocate (T* p, std::size_t) noexcept;
 
-	segment_t* base_address ();
+	void* base_address () {
+		return (void*)(addr_traits::region_address() + (pool << (addr_traits::segmentid_bits + addr_traits::offset_bits)));
+	}
+	
+	void* start_address () {
+		return (T*)(uint64_t)(base_address() + addr_traits::segment_size * hdrsegs());
+	}
 	
 	segment_t* find_segment ();
 
 	segment_t* alloc_segment ();
 
 	void free_segment (segment_t* seg);
+
+	std::string shared_name ();
+
+  header_t* hdr;
+	poolid_t pool;
+	int fh;
 	
 };
 
-template<typename T, typename addr_traits>
-typename shmfixedpool<T,addr_traits>::shmfixedpool_header* shmfixedpool<T,addr_traits>::hdr = nullptr;
 
 }
 

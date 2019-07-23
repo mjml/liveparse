@@ -1,5 +1,6 @@
 /**
  * @cxxparams "-g -I../.. -std=c++17"
+ * @ldparams "-lrt"
  **/
 
 #include <stdint.h>
@@ -15,6 +16,8 @@
 #include "util/shmallocator.hpp"
 
 using namespace util;
+
+std::string appName;
 
 std::string demangle (const char* name) {
 	int status = -4;
@@ -80,6 +83,8 @@ typedef pool_addr_traits<0x1004,16,12,8,12> shglobal4;
 int main ()
 {
 	using namespace std;
+
+	appName = "shmobj1";
 	
 	A a1;
 	A a2(a1);
@@ -99,7 +104,7 @@ int main ()
 	cout << "f(a3) = " << f(a3) << endl;
 	
 	void* ptr = (void*)0x100489abcdefL;
-
+	
 	cout << hex << ptr << endl;
 
 	cout << hex << setfill('0');
@@ -113,9 +118,9 @@ int main ()
 	cout << "poolid_t is " << demangle(typeid(shglobal4::poolid(ptr)).name()) << endl;
 	cout << "segmentid_t is " << demangle(typeid(shglobal4::segmentid(ptr)).name()) << endl;
 	cout << "offset_t is " << demangle(typeid(shglobal4::offset(ptr)).name()) << endl;
-
-	//auto& pool = shmfixedpool<A,shglobal4>::init_or_attach(0);
-
+	
+	auto pool = shmfixedpool<A,shglobal4>::init_or_attach(0);
+	
 	cout << hex << util::bits_to_mask(8,48-8) << endl;
 	
 	return 0;
