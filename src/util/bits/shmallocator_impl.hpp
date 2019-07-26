@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <mutex>
 #include <shared_mutex>
 
 extern std::string appName;
@@ -51,10 +52,6 @@ shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::init_or_attach (pooli
 		pool.hdr = reinterpret_cast<header_t*>(base_addr);
 	}
 
-	std::scoped_lock(pool.mut);
-	
-
-	
 	
 	
 	return pool;
