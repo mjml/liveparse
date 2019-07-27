@@ -3,6 +3,9 @@
  */
 #pragma once
 
+#include <stdint.h>
+#include <type_traits>
+
 namespace util {
 
 static constexpr uint32_t pointer_width = 8 * sizeof(void*);
