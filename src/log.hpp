@@ -59,6 +59,9 @@ public:
 	
 };
 
+template <>
+FILE* Log<>::logfile = nullptr;
+
 
 template<class logger_traits>
 void Log<logger_traits>::initialize ()
