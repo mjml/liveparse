@@ -1,8 +1,9 @@
 #pragma once
 #include <string.h>
 #include <errno.h>
+#include <stdexcept>
 
-#define errno_exception(E) __errno_exception<E>(__FILE__,__LINE__)
+
 
 template<class E>
 E __errno_exception (const char* file, int line)
@@ -12,4 +13,8 @@ E __errno_exception (const char* file, int line)
 	snprintf(msg,1024,"%s:%d: %s", file, line, reason);
 	return E(msg);
 }
+
+#define errno_exception(E) __errno_exception<E>(__FILE__,__LINE__)
+
+#define errno_runtime_error __errno_exception<std::runtime_error>(__FILE__,__LINE__)
 

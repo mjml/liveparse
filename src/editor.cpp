@@ -1,3 +1,4 @@
+#include <iostream>
 #include "editor.hpp"
 #include "log.hpp"
 #include "docreg.hpp"
@@ -9,7 +10,7 @@ int main (int argc, char *argv[])
 {
 	
 	// all initialization
-	try {
+	//try {
 		
 		log::initialize();
 		
@@ -21,10 +22,10 @@ int main (int argc, char *argv[])
 		
 		
 		
-	} catch (const std::exception e) {
-		
-		return 1;
-	}
+		//} catch (const std::exception e) {
+		//std::cout << e.what() << std::endl;
+		//return 1;
+		//}
 
 
 	//// completion of initialization

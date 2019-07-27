@@ -1,3 +1,4 @@
+#include "log.hpp"
 #include "memsys.hpp"
 
 namespace MemSys
@@ -7,6 +8,7 @@ namespace MemSys
 void initialize () {
 
 	// Init global configuration
+	log::print("MemSys::initialize()");
 
 	// Init space for DocReg 
 	
