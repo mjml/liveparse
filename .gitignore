@@ -2,6 +2,7 @@
 *.dot
 *.obj
 *.o
+./src/liveparse
 **/tests/build/
 **/tests/output/
 **/tests/include/
