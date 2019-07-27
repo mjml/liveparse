@@ -1,5 +1,7 @@
 *.svg
 *.dot
+*.obj
+*.o
 **/tests/build/
 **/tests/output/
 **/tests/include/
