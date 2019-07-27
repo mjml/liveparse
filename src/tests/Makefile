@@ -2,7 +2,7 @@ CXXFLAGS=-g -std=c++17
 LDFLAGS=-g
 PROJECT_HOME=../..
 CREATE_TEST_MATRIX=$(PROJECT_HOME)/ext/testmatrix/create_test_matrix.pl6
-TEST_SOURCES=$(shell ls -1 *.cpp)
+TEST_SOURCES=$(wildcard *.cpp)
 PERL6=perl6
 
 @default: @tests
