@@ -107,6 +107,9 @@ inline void Log<logger_traits>::ezprint (const char* fmt, ...)
 	if (!fputc('\n',logfile)) {
 		throw errno_runtime_error;
 	}
+	if (fflush(logfile)) {
+		throw errno_runtime_error;
+	}
 }
 
 
