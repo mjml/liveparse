@@ -17,10 +17,10 @@ EDITOR_OBJS=$(patsubst %.cpp,%.obj,$(EDITOR_SRCS))
 %.c: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-clean:
+@clean:
 	$(RM) -rf *.o *.obj liveparse
 	$(RM) -rf tests/test?? tests/test?
-	make -C tests clean
+	make -C tests @clean
 
 liveparse: $(EDITOR_OBJS) $(EDITOR_HDRS)
 	$(CXX) $(CXXFLAGS) -o $@ $(EDITOR_OBJS)

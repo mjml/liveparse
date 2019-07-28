@@ -16,6 +16,22 @@ namespace util
 {
 
 template<typename T, typename addr_traits>
+shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> ()
+	:hdr(nullptr),
+	 pool(0),
+	 fh(-1)
+{
+}
+
+template<typename T, typename addr_traits>
+shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> (shmfixedpool<T,addr_traits>&& moved)
+	:hdr(nullptr),
+	 pool(0),
+	 fh(-1)
+{
+}
+
+template<typename T, typename addr_traits>
 shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::init_or_attach (poolid_t poolid)
 {
 	self_t pool = { .hdr=nullptr, .pool=poolid, .fh=0 };

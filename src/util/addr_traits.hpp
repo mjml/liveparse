@@ -56,7 +56,7 @@ struct region_addr_traits
 };
 
 
-template<uint64_t RID, uint32_t RB=8, uint32_t PB=12, uint32_t SB=16, uint32_t OB=12>
+template<uint64_t RID, uint32_t RB, uint32_t PB, uint32_t SB, uint32_t OB>
 struct pool_addr_traits : public region_addr_traits<RID,RB>
 {
 	static_assert(RB + PB + SB + OB == addr_width,
@@ -98,6 +98,10 @@ struct pool_addr_traits : public region_addr_traits<RID,RB>
 	
 	static auto offset (void* ptr) {
 		return util::bits<uint16_t>(ptr,OB,0);
+	}
+
+	static void* base_address (poolid_t pid, segmentid_t segid = 0) {
+		return (void*)((RID << (pointer_width - RB)) + (pid << (OB+SB)) + (segid << OB));
 	}
 	
 };

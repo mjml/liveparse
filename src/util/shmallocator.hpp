@@ -1,9 +1,5 @@
 #pragma once
 
-#include <memory>
-#include <cassert>
-#include <stdio.h>
-
 namespace util
 {
 struct free_meta;
@@ -13,63 +9,36 @@ template<typename T, typename addr_traits> class shmfixedpool;
 template<typename T, typename addr_traits> class shmallocator;
 }
 
+#include <memory>
+#include <cassert>
+#include <stdio.h>
 #include <shared_mutex>
 #include "addr_traits.hpp"
-
+#include <boost/intrusive/list.hpp>
+#include <variant>
 
 namespace util {
 
-struct free_meta
+namespace bi = boost::intrusive;
+
+struct free_object
 {
 	typedef free_meta* pointer;
 	// to be replaced by boost::intrusive possibly
-	pointer next;
-	pointer prev;
+	bi::list_member_hook<> memb;
 };
 
+typedef bi::list<free_meta_object, bi::member_hook<free_meta_object, list_member_hook<>, &free_meta_object::memb> > free_list;
 
-template<typename T>
-union shmobj
-{
-	
-	shmobj() : obj() {}
 
-	template<typename U>
-	shmobj(U& other) : obj(other) {}
-
-	T& operator* () noexcept {
-		return obj;
-	}
-	
-	template<typename U>
-	operator U () noexcept {
-		return (T&)(obj);
-	}
-	
-	template<typename U>
-	operator U& () noexcept {
-		return (T&)(obj);
-	}
-	
-	T obj;
-	free_meta meta;
-	
-};
-
+template<T>
+using shmobj = std::variant<free_object, T>;
 
 template<typename T, typename addr_traits>
 struct shmfixedsegment 
 {
 	struct shmfixedsegment_header
 	{
-		int num_free;
-		shmfixedsegment_header* next;
-		shmfixedsegment_header* prev;
-		void* head;
-		void* tail;
-		
-		shmfixedsegment_header (int space, int fixedsize) :
-			num_free(space/fixedsize), head(nullptr), tail(nullptr), next(nullptr), prev(nullptr)	{}
 		
 	};
 	
@@ -92,19 +61,14 @@ struct shmfixedpool
 {
 	typedef shmfixedpool<T,addr_traits> self_t;
 	typedef shmfixedsegment<T,addr_traits> segment_t;
-
+	
 	using poolid_t = typename addr_traits::poolid_t;
 	
-	constexpr static uint64_t segtable_size = addr_traits::segmentid_space >> 3;
-	
 	typedef struct header_s {
-		int ref_cnt = 0;
-		int num_free = 0;
-		int size = 0;
-		free_meta* freehead = nullptr;
-		free_meta* freetail = nullptr;
+		uint64_t capacity;
+		uint64_t size;
+		free_list fr;
 		std::shared_mutex mut;
-		uint8_t segbits[segtable_size];
 		
     header_s () = default;
 		~header_s () = default;
@@ -119,27 +83,30 @@ struct shmfixedpool
 	static self_t init (poolid_t poolid);
 	static self_t attach (poolid_t poolid);
 	
-	static void detach (self_t pool);
+	static void detach (self_t& pool);
 	
-	T* allocate(std::size_t n);
-	
-	void deallocate (T* p, std::size_t) noexcept;
+	shmfixedpool ();
+	shmfixedpool (const shmfixedpool<T,addr_traits>&) = delete;
+	shmfixedpool (shmfixedpool<T,addr_traits>&& moved);
+	~shmfixedpool ();
 
+	shmfixedpool& operator= (const shmfixedpool<T,addr_traits>& other) = delete;
+	
+	std::string shared_name ();
+
+	void swap (shmfixedpool<T,addr_traits>& other);
+	
 	void* base_address () {
-		return (void*)(addr_traits::region_address() + (pool << (addr_traits::segmentid_bits + addr_traits::offset_bits)));
+		return addr_traits::base_address(pool);
 	}
 	
 	void* start_address () {
 		return (T*)(uint64_t)(base_address() + addr_traits::segment_size * hdrsegs());
 	}
 	
-	segment_t* find_segment ();
-
-	segment_t* alloc_segment ();
-
-	void free_segment (segment_t* seg);
-
-	std::string shared_name ();
+	T* allocate(std::size_t n);
+	
+	void deallocate (T* p, std::size_t) noexcept;
 
   header_t* hdr;
 	poolid_t pool;
