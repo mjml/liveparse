@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <type_traits>
 
-namespace util {
+namespace mem {
 
 static constexpr uint32_t pointer_width = 8 * sizeof(void*);
 static constexpr uint32_t addr_width = 6 * sizeof(void*); // x86_64 only uses 48/64 bits. damn!
@@ -110,4 +110,4 @@ struct pool_addr_traits : public region_addr_traits<RID,RB>
 const uint16_t progheap_region_id = 0;
 
 
-}
+} // namespace mem
