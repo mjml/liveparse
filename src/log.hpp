@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <cassert>
 #include <stdexcept>
-#include "util/errno_except.hpp"
+#include "util/errno_exception.hpp"
 #include "editor.hpp"
 
 enum LogLevel {
