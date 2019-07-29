@@ -67,6 +67,7 @@ struct shmfixedpool
 	typedef struct header_s {
 		uint64_t capacity;
 		uint64_t size;
+		uint16_t refcnt;
 		free_list fr;
 		std::shared_mutex mut;
 		
@@ -75,15 +76,17 @@ struct shmfixedpool
 		
 	} header_t;
 	
-	constexpr static uint64_t hdrsegs() {
-		return (sizeof(header_t) / addr_traits::segment_size) + 1;
+	constexpr static uint64_t header_size() {
+		return sizeof(header_t);
+	}
+
+	constexpr static uint64_t initial_size() {
+		return addr_traits::segment_size * 2;
 	}
 	
 	static self_t init_or_attach (poolid_t poolid);
 	static self_t init (poolid_t poolid);
 	static self_t attach (poolid_t poolid);
-	
-	static void detach (self_t& pool);
 	
 	shmfixedpool ();
 	shmfixedpool (const shmfixedpool<T,addr_traits>&) = delete;
@@ -101,7 +104,7 @@ struct shmfixedpool
 	}
 	
 	void* start_address () {
-		return (T*)(uint64_t)(base_address() + addr_traits::segment_size * hdrsegs());
+		return ((header_size() / addr_traits::segment_size) + 1) * addr_traits::segment_size;
 	}
 	
 	T* allocate(std::size_t n);

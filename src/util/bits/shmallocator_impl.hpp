@@ -23,13 +23,41 @@ shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> ()
 {
 }
 
+
 template<typename T, typename addr_traits>
 shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> (shmfixedpool<T,addr_traits>&& moved)
-	:hdr(nullptr),
-	 pool(0),
-	 fh(-1)
+	:hdr(moved.hdr),
+	 pool(moved.pool),
+	 fh(moved.fh)
 {
+	moved.hdr = nullptr;
+	moved.pool = 0;
+	moved.fh = -1;
 }
+
+
+template<typename T, typename addr_traits>
+shmfixedpool<T, addr_traits>::~shmfixedpool<T, addr_traits> ()
+{
+	if (moved.fh == -1) return;
+	assert(hdr);
+	hdr->mut.lock();
+	size_t size = hdr->capacity;
+	uint16_t refcnt = --hdr->refcnt;
+	hdr->mut.unlock();
+	void* base_addr = base_address();
+	if (munmap(base_addr, size)) {
+		throw errno_runtime_error;
+	}
+	
+	if (refcnt == 0) {
+		if (shm_unlink(shared_name().c_str())) {
+			throw errno_runtime_error;
+		}
+	}
+	
+}
+
 
 template<typename T, typename addr_traits>
 shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::init_or_attach (poolid_t poolid)
@@ -63,22 +91,12 @@ shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::init_or_attach (pooli
 	
 	if (created) {
 		pool.hdr = new (base_addr) header_t();
-		pool.hdr->size = hdrsize;
+		pool.hdr->capacity = hdrsize;
 	} else {
 		pool.hdr = reinterpret_cast<header_t*>(base_addr);
 	}
-
-	
 	
 	return pool;
-}
-
-
-template<typename T, typename addr_traits>
-void shmfixedpool<T, addr_traits>::detach (self_t pool)
-{
-	
-	
 }
 
 
@@ -88,8 +106,16 @@ T* shmfixedpool<T,addr_traits>::allocate (std::size_t n)
 	assert(n==1);
 	
 	// look first in the free list
+	if (this->fl.size() > 0) {
+		free_object& fo = fl.pop_back();
+		T* objbytes = reinterpret_cast<T*>(&fo);
+		return objbytes;
+	}
 	
 	// failing the free list, use uncommitted objects
+	if () {
+
+	}
 
 	// failing uncommitted objects, allocate a new segment
 
