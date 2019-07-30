@@ -1,9 +1,8 @@
 #pragma once
 
-namespace util
+namespace mem
 {
 struct free_meta;
-template<typename T> union shmobj;
 template<typename T, typename addr_traits> class shmfixedsegment;
 template<typename T, typename addr_traits> class shmfixedpool;
 template<typename T, typename addr_traits> class shmallocator;
@@ -17,7 +16,7 @@ template<typename T, typename addr_traits> class shmallocator;
 #include <boost/intrusive/list.hpp>
 #include <variant>
 
-namespace util {
+namespace mem {
 
 namespace bi = boost::intrusive;
 
@@ -28,10 +27,10 @@ struct free_object
 	bi::list_member_hook<> memb;
 };
 
-typedef bi::list<free_meta_object, bi::member_hook<free_meta_object, list_member_hook<>, &free_meta_object::memb> > free_list;
+typedef bi::list<free_object, bi::member_hook<free_object, bi::list_member_hook<>, &free_object::memb> > free_list;
 
 
-template<T>
+template<typename T>
 using shmobj = std::variant<free_object, T>;
 
 template<typename T, typename addr_traits>
@@ -67,8 +66,8 @@ struct shmfixedpool
 	typedef struct header_s {
 		uint64_t capacity;
 		uint64_t size;
-		uint16_t refcnt;
-		free_list fr;
+		int16_t refcnt;
+		free_list fl;
 		std::shared_mutex mut;
 		
     header_s () = default;
@@ -79,20 +78,23 @@ struct shmfixedpool
 	constexpr static uint64_t header_size() {
 		return sizeof(header_t);
 	}
-
+	
 	constexpr static uint64_t initial_size() {
 		return addr_traits::segment_size * 2;
 	}
+
+	T* next_uncommitted () {
+		return reinterpret_cast<T*>(start_address() + this->size);
+	}
 	
-	static self_t init_or_attach (poolid_t poolid);
-	static self_t init (poolid_t poolid);
 	static self_t attach (poolid_t poolid);
+	static void detach (self_t& pool);
 	
 	shmfixedpool ();
-	shmfixedpool (const shmfixedpool<T,addr_traits>&) = delete;
-	shmfixedpool (shmfixedpool<T,addr_traits>&& moved);
+	shmfixedpool (const shmfixedpool&) = delete;
+	shmfixedpool (shmfixedpool&& moved);
 	~shmfixedpool ();
-
+	
 	shmfixedpool& operator= (const shmfixedpool<T,addr_traits>& other) = delete;
 	
 	std::string shared_name ();
@@ -118,7 +120,7 @@ struct shmfixedpool
 };
 
 
-}
+} // namespace mem
 
 
 #include "bits/shmallocator_impl.hpp"

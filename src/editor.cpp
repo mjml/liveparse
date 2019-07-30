@@ -1,10 +1,11 @@
 #include <iostream>
 #include "editor.hpp"
-#include "log.hpp"
+#include "util/log.hpp"
 #include "docreg.hpp"
 #include "memsys.hpp"
 #include "mque.hpp"
 
+const char* appName = "liveparse";
 
 int main (int argc, char *argv[])
 {

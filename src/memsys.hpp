@@ -1,5 +1,5 @@
 
-#include "util/addr_traits.hpp"
+#include "mem/addr_traits.hpp"
 
 namespace MemSys
 {

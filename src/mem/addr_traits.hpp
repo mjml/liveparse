@@ -9,7 +9,7 @@
 namespace mem {
 
 static constexpr uint32_t pointer_width = 8 * sizeof(void*);
-static constexpr uint32_t addr_width = 6 * sizeof(void*); // x86_64 only uses 48/64 bits. damn!
+static constexpr uint32_t address_width = 6 * sizeof(void*); // x86_64 only uses 48/64 bits. damn!
 
 static constexpr uint64_t bits_to_size (uint32_t bits) {
 	return 0x1L << bits;
@@ -46,11 +46,11 @@ struct region_addr_traits
 	
 	static constexpr uint32_t regionid_bits = RB;
 	constexpr static uint64_t rid = RID;
-	constexpr static uint64_t regionid_ofs = addr_width - RB;
+	constexpr static uint64_t regionid_ofs = address_width - RB;
 	constexpr static uint64_t region_address () { return RID << regionid_ofs; }
 	
 	static auto regionid (void* ptr) {
-		return util::bits<regionid_t>(ptr,RB,addr_width-RB);
+		return mem::bits<regionid_t>(ptr,RB,address_width-RB);
 	}
 	
 };
@@ -59,7 +59,7 @@ struct region_addr_traits
 template<uint64_t RID, uint32_t RB, uint32_t PB, uint32_t SB, uint32_t OB>
 struct pool_addr_traits : public region_addr_traits<RID,RB>
 {
-	static_assert(RB + PB + SB + OB == addr_width,
+	static_assert(RB + PB + SB + OB == address_width,
 								"An addressing format must have bit field widths that add up to the pointer width.");
 
 	static constexpr uint32_t regionid_bits = RB;
@@ -75,7 +75,7 @@ struct pool_addr_traits : public region_addr_traits<RID,RB>
 	static constexpr uint64_t segment_size = offset_space;
 	static constexpr uint64_t page_size = offset_space;
 	
-	static constexpr uint64_t regionid_mask = bits_to_mask(regionid_bits, addr_width - regionid_bits);
+	static constexpr uint64_t regionid_mask = bits_to_mask(regionid_bits, address_width - regionid_bits);
 	static constexpr uint64_t poolid_mask = bits_to_mask(poolid_bits, segmentid_bits + offset_bits);
 	static constexpr uint64_t segmentid_mask = bits_to_mask(segmentid_bits, offset_bits);
 	static constexpr uint64_t offset_mask = bits_to_mask(offset_bits, 0);
@@ -89,19 +89,19 @@ struct pool_addr_traits : public region_addr_traits<RID,RB>
 	typedef typename bit_storage<OB>::type offset_t;
 	
 	static auto poolid (void* ptr) {
-		return util::bits<poolid_t>(ptr,PB,SB+OB);
+		return mem::bits<poolid_t>(ptr,PB,SB+OB);
 	}
 	
 	static auto segmentid (void* ptr) {
-		return util::bits<segmentid_t>(ptr,SB,OB);
+		return mem::bits<segmentid_t>(ptr,SB,OB);
 	}
 	
 	static auto offset (void* ptr) {
-		return util::bits<uint16_t>(ptr,OB,0);
+		return mem::bits<uint16_t>(ptr,OB,0);
 	}
 
 	static void* base_address (poolid_t pid, segmentid_t segid = 0) {
-		return (void*)((RID << (pointer_width - RB)) + (pid << (OB+SB)) + (segid << OB));
+		return (void*)((RID << (address_width - RB)) + (pid << (OB+SB)) + (segid << OB));
 	}
 	
 };

@@ -9,14 +9,30 @@
 #include <fcntl.h>
 #include <mutex>
 #include <shared_mutex>
+#include "util/log.hpp"
+#include "util/errno_exception.hpp"
 
-extern std::string appName;
+#ifndef LOGLEVEL_MEM
+#define LOGLEVEL_MEM 3
+#endif 
 
-namespace util
+
+namespace mem
 {
 
+struct shmallocator_logger_traits
+{
+	constexpr static const char* name = "mem";
+	constexpr static int logLevel = LOGLEVEL_MEM;
+};
+
+
+
+typedef Log<shmallocator_logger_traits> shmlog;
+
+
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> ()
+shmfixedpool<T, addr_traits>::shmfixedpool ()
 	:hdr(nullptr),
 	 pool(0),
 	 fh(-1)
@@ -25,7 +41,7 @@ shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> ()
 
 
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> (shmfixedpool<T,addr_traits>&& moved)
+shmfixedpool<T, addr_traits>::shmfixedpool (shmfixedpool<T,addr_traits>&& moved)
 	:hdr(moved.hdr),
 	 pool(moved.pool),
 	 fh(moved.fh)
@@ -37,34 +53,18 @@ shmfixedpool<T, addr_traits>::shmfixedpool<T, addr_traits> (shmfixedpool<T,addr_
 
 
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits>::~shmfixedpool<T, addr_traits> ()
+shmfixedpool<T, addr_traits>::~shmfixedpool ()
 {
-	if (moved.fh == -1) return;
-	assert(hdr);
-	hdr->mut.lock();
-	size_t size = hdr->capacity;
-	uint16_t refcnt = --hdr->refcnt;
-	hdr->mut.unlock();
-	void* base_addr = base_address();
-	if (munmap(base_addr, size)) {
-		throw errno_runtime_error;
-	}
-	
-	if (refcnt == 0) {
-		if (shm_unlink(shared_name().c_str())) {
-			throw errno_runtime_error;
-		}
-	}
-	
 }
 
 
 template<typename T, typename addr_traits>
-shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::init_or_attach (poolid_t poolid)
+shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::attach (poolid_t poolid)
 {
-	self_t pool = { .hdr=nullptr, .pool=poolid, .fh=0 };
-	
-	uint64_t hdrsize = hdrsegs() * addr_traits::segment_size;
+	self_t pool = self_t();
+	pool.pool = poolid;
+
+	uint64_t total_size = 0;
 	void* base_addr = pool.base_address();
 	std::string name = pool.shared_name();
 	bool created = false;
@@ -77,26 +77,68 @@ shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::init_or_attach (pooli
 	
 	if (statbuf.st_size == 0) {
 		created = true;
-		ftruncate(pool.fh, hdrsize); 
+		total_size = pool.initial_size();
+		ftruncate(pool.fh, total_size); 
+	} else {
+		total_size = statbuf.st_size;
 	}
 	
 	int flags =
 		MAP_SHARED | // allow other processes
 		MAP_FIXED; // use this address exactly
 	
-	void *result = mmap (base_addr, hdrsize, PROT_READ|PROT_WRITE,
+	void *result = mmap (base_addr, total_size, PROT_READ|PROT_WRITE,
 											 flags, pool.fh, 0); // -1 fd and 0 file offset
 	
 	assert(base_addr == result);
 	
 	if (created) {
 		pool.hdr = new (base_addr) header_t();
-		pool.hdr->capacity = hdrsize;
+		pool.hdr->mut.lock();
+		pool.hdr->capacity = total_size;
+		pool.hdr->mut.unlock();
+		std::cout << "Created." << std::endl;
 	} else {
 		pool.hdr = reinterpret_cast<header_t*>(base_addr);
+		std::cout << "Attached." << std::endl;
 	}
 	
 	return pool;
+}
+
+
+template<typename T, typename addr_traits>
+void shmfixedpool<T, addr_traits>::detach (shmfixedpool<T, addr_traits>& pool)
+{
+	assert(pool.hdr != nullptr);
+	bool last = false;
+
+	pool.hdr->mut.lock();
+	int16_t refcnt = --pool.hdr->refcnt;
+	auto size = pool.hdr->capacity;
+	if (refcnt == 0) {
+		last = true;
+	}
+	pool.hdr->mut.unlock();
+
+	if (munmap(pool.base_address(), size)) {
+		throw errno_runtime_error;
+	}
+	
+	int unlink_result = shm_unlink(pool.shared_name().c_str());
+	if (unlink_result) {
+		if (errno == EACCES) {
+			// This can be OK - it would mean that another process could have mapped
+			// the object since the time at which we did pool.hdr->unlock()
+			shmlog::warning("A call to shm_unlink failed with EACCESS.");
+		} else if (errno == ENOENT) {
+			// This won't cause problems, but is still worth a warning.
+			shmlog::warning("Tried to unlink a shared memory segment that doesn't exist.");
+		} else {
+			throw errno_runtime_error;
+		}
+	}
+	
 }
 
 
@@ -106,15 +148,15 @@ T* shmfixedpool<T,addr_traits>::allocate (std::size_t n)
 	assert(n==1);
 	
 	// look first in the free list
-	if (this->fl.size() > 0) {
-		free_object& fo = fl.pop_back();
+	if (this->hdr->fl.size() > 0) {
+		free_object& fo = this->hdr->fl.pop_back();
 		T* objbytes = reinterpret_cast<T*>(&fo);
 		return objbytes;
 	}
 	
 	// failing the free list, use uncommitted objects
-	if () {
-
+	if (this->hdr->size < this->hdr->capacity) {
+		
 	}
 
 	// failing uncommitted objects, allocate a new segment
@@ -143,7 +185,7 @@ std::string shmfixedpool<T,addr_traits>::shared_name ()
 	//std::string result(0,255);
 	//snprintf(&result[0], 255, "/%s/pool-%x.%lx.%x.shm", appName.c_str(), addr_traits::regionid_bits, addr_traits::rid, this->pool);
 	std::stringstream ss;
-	ss << "/" << appName.c_str() << "-pool-" << std::hex
+	ss << "/" << appName << "-pool-" << std::hex
 		 << addr_traits::regionid_bits << "."
 		 << addr_traits::rid << "."
 		 << this->pool;
@@ -151,3 +193,9 @@ std::string shmfixedpool<T,addr_traits>::shared_name ()
 }
 
 }
+
+
+template<>
+FILE* mem::shmlog::logfile;
+
+

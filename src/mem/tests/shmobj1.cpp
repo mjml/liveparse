@@ -1,6 +1,6 @@
 /**
  * @cxxparams "-g -I../.. -std=c++17"
- * @ldparams "-lrt"
+ * @ldparams "-lpthread -lrt"
  **/
 
 #include <stdint.h>
@@ -12,12 +12,10 @@
 #include <memory>
 #include <cxxabi.h>
 #include <iomanip>
-#include "util/addr_traits.hpp"
-#include "util/shmallocator.hpp"
+#include "mem/addr_traits.hpp"
+#include "mem/shmallocator.hpp"
 
-using namespace util;
-
-std::string appName;
+using namespace mem;
 
 std::string demangle (const char* name) {
 	int status = -4;
@@ -37,7 +35,7 @@ public:
 	 std::copy(other.arr, other.arr+43, arr);
 	}
 	~A() = default;
-
+	
 	A& operator= (const A& other) {
 		fav = other.fav;
 	  x = other.x;
@@ -79,29 +77,31 @@ int g(int b) {
 
 typedef pool_addr_traits<0x1004,16,12,8,12> shglobal4;
 
+template<>
+FILE* mem::shmlog::logfile = nullptr;
+
+template<>
+FILE* log::logfile = nullptr;
+
 
 int main ()
 {
 	using namespace std;
 
-	appName = "shmobj1";
-	
 	A a1;
 	A a2(a1);
 	a2.x = 123;
+
+	log::initialize();
+	mem::shmlog::initialize();
 	
 	cout << "a1 is " << a1 << endl;
 	cout << "a2 is " << a2 << endl;
 	
-	auto sa = new shmobj<B>();
-	auto &ra = *sa;
+	auto sa = new shmobj<A>(A());
 	
-	cout << "ra is " << (*ra) << endl;
-	cout << "f(ra) = " << f(ra) << endl;
-	
-	shmobj<A> &a3 = reinterpret_cast<shmobj<A>&>(a2);
-	
-	cout << "f(a3) = " << f(a3) << endl;
+	cout << "sa is " << std::get<A>(*sa) << endl;
+	cout << "f(sa) = " << std::get<A>(*sa) << endl;
 	
 	void* ptr = (void*)0x100489abcdefL;
 	
@@ -119,9 +119,11 @@ int main ()
 	cout << "segmentid_t is " << demangle(typeid(shglobal4::segmentid(ptr)).name()) << endl;
 	cout << "offset_t is " << demangle(typeid(shglobal4::offset(ptr)).name()) << endl;
 	
-	auto pool = shmfixedpool<A,shglobal4>::init_or_attach(0);
-	
-	cout << hex << util::bits_to_mask(8,48-8) << endl;
+	auto pool = shmfixedpool<A,shglobal4>::attach(0);
+
+
+
+	shmfixedpool<A,shglobal4>::detach(pool);
 	
 	return 0;
 }
