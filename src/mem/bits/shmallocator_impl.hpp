@@ -26,7 +26,15 @@ struct shmallocator_logger_traits
 	constexpr static int logLevel = LOGLEVEL_MEM;
 };
 
-
+struct reallocation_request
+{
+	uint64_t regionid;
+	uint64_t poolid;
+	uint64_t deficit;
+	reallocation_request(uint64_t _regionid, uint64_t _poolid, uint64_t _deficit)
+		: regionid(_regionid), poolid(_poolid), deficit(_deficit) {}
+	~reallocation_request() = default;
+};
 
 typedef Log<shmallocator_logger_traits> shmlog;
 
@@ -63,7 +71,7 @@ shmfixedpool<T, addr_traits> shmfixedpool<T, addr_traits>::attach (poolid_t pool
 {
 	self_t pool = self_t();
 	pool.pool = poolid;
-
+	
 	uint64_t total_size = 0;
 	void* base_addr = pool.base_address();
 	std::string name = pool.shared_name();
@@ -114,13 +122,13 @@ void shmfixedpool<T, addr_traits>::detach (shmfixedpool<T, addr_traits>& pool)
 	bool last = false;
 
 	pool.hdr->mut.lock();
-	int16_t refcnt = --pool.hdr->refcnt;
+	int16_t refcnt = --(pool.hdr->refcnt);
 	auto size = pool.hdr->capacity;
 	if (refcnt == 0) {
 		last = true;
 	}
 	pool.hdr->mut.unlock();
-
+	
 	if (munmap(pool.base_address(), size)) {
 		throw errno_runtime_error;
 	}
@@ -146,35 +154,46 @@ template<typename T, typename addr_traits>
 T* shmfixedpool<T,addr_traits>::allocate (std::size_t n)
 {
 	assert(n==1);
+
+	this->hdr->mut.lock();
 	
 	// look first in the free list
 	if (this->hdr->fl.size() > 0) {
-		free_object& fo = this->hdr->fl.pop_back();
+		free_object& fo = this->hdr->fl.back();
+		this->hdr->fl.pop_back();
+		this->hdr->mut.unlock();
 		T* objbytes = reinterpret_cast<T*>(&fo);
 		return objbytes;
 	}
 	
 	// failing the free list, use uncommitted objects
-	if (this->hdr->size < this->hdr->capacity) {
-		
+	if (this->hdr->size + sizeof(T) <= this->hdr->capacity) {
+		void* ptr = (void*)((uint64_t)(start_address()) + this->hdr->size);
+		this->hdr->size += sizeof(T);
+		this->hdr->mut.unlock();
+		return reinterpret_cast<T*>(ptr);
 	}
-
-	// failing uncommitted objects, allocate a new segment
-
-	// return the object
 	
-	return nullptr;
+	// failing uncommitted objects, allocate a new segment
+	uint64_t deficit = this->hdr->size + sizeof(T) - this->hdr->capacity;
+	throw reallocation_request(addr_traits::rid,pool,deficit);
+	
 }
 
 
 template<typename T, typename addr_traits>
-void shmfixedpool<T,addr_traits>::deallocate (T* ptr, size_t s) noexcept
+void shmfixedpool<T,addr_traits>::deallocate (T* ptr, size_t s) 
 {
 	assert(addr_traits::regionid(ptr) == addr_traits::rid);
 	assert(s == 1);
 	int poolid = addr_traits::poolid(ptr);
+
+	hdr->mut.lock();
 	
 	
+	
+	
+	hdr->mut.unlock();
 	
 }
 

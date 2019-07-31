@@ -106,12 +106,12 @@ struct shmfixedpool
 	}
 	
 	void* start_address () {
-		return ((header_size() / addr_traits::segment_size) + 1) * addr_traits::segment_size;
+		return reinterpret_cast<void*>((uint64_t)base_address() + ((header_size() / addr_traits::segment_size) + 1) * addr_traits::segment_size);
 	}
 	
 	T* allocate(std::size_t n);
 	
-	void deallocate (T* p, std::size_t) noexcept;
+	void deallocate (T* p, std::size_t);
 
   header_t* hdr;
 	poolid_t pool;

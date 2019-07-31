@@ -14,6 +14,7 @@
 #include <iomanip>
 #include "mem/addr_traits.hpp"
 #include "mem/shmallocator.hpp"
+#include "util/skiparraylist.hpp"
 
 using namespace mem;
 
@@ -84,16 +85,18 @@ template<>
 FILE* log::logfile = nullptr;
 
 
-int main ()
+int main (int argc, char *argv[])
 {
 	using namespace std;
 
 	A a1;
 	A a2(a1);
 	a2.x = 123;
-
+	
 	log::initialize();
 	mem::shmlog::initialize();
+
+	cout << argc << " args" << endl;
 	
 	cout << "a1 is " << a1 << endl;
 	cout << "a2 is " << a2 << endl;
@@ -103,26 +106,30 @@ int main ()
 	cout << "sa is " << std::get<A>(*sa) << endl;
 	cout << "f(sa) = " << std::get<A>(*sa) << endl;
 	
-	void* ptr = (void*)0x100489abcdefL;
-	
-	cout << hex << ptr << endl;
-
-	cout << hex << setfill('0');
-	cout << "region_id: 0x" << std::setw(shglobal4::regionid_bits / 8) << (uint32_t)shglobal4::regionid(ptr) << endl;
-	cout << "pool_id: 0x" << setw(shglobal4::poolid_bits / 8) << (uint32_t)shglobal4::poolid(ptr) << endl;
-	cout << "segment_id: 0x" << setw(shglobal4::segmentid_bits / 8) << (uint32_t)shglobal4::segmentid(ptr) << endl;
-	cout << "offset: 0x" << setw(shglobal4::offset_bits / 8) << (uint32_t)shglobal4::offset(ptr) << endl;
-	cout << dec << setfill(' ');
-	
-	cout << "regionid_t is " << demangle(typeid(shglobal4::regionid(ptr)).name()) << endl;
-	cout << "poolid_t is " << demangle(typeid(shglobal4::poolid(ptr)).name()) << endl;
-	cout << "segmentid_t is " << demangle(typeid(shglobal4::segmentid(ptr)).name()) << endl;
-	cout << "offset_t is " << demangle(typeid(shglobal4::offset(ptr)).name()) << endl;
-	
 	auto pool = shmfixedpool<A,shglobal4>::attach(0);
-
-
-
+	
+	if (argc <= 1) {
+		
+		A* ptr = pool.allocate(1);
+		
+		cout << hex << ptr << endl;
+		
+		cout << hex << setfill('0');
+		cout << "region_id: 0x" << std::setw(shglobal4::regionid_bits / 8) << (uint32_t)shglobal4::regionid(ptr) << endl;
+		cout << "pool_id: 0x" << setw(shglobal4::poolid_bits / 8) << (uint32_t)shglobal4::poolid(ptr) << endl;
+		cout << "segment_id: 0x" << setw(shglobal4::segmentid_bits / 8) << (uint32_t)shglobal4::segmentid(ptr) << endl;
+		cout << "offset: 0x" << setw(shglobal4::offset_bits / 8) << (uint32_t)shglobal4::offset(ptr) << endl;
+		cout << dec << setfill(' ');
+	
+		cout << "regionid_t is " << demangle(typeid(shglobal4::regionid(ptr)).name()) << endl;
+		cout << "poolid_t is " << demangle(typeid(shglobal4::poolid(ptr)).name()) << endl;
+		cout << "segmentid_t is " << demangle(typeid(shglobal4::segmentid(ptr)).name()) << endl;
+		cout << "offset_t is " << demangle(typeid(shglobal4::offset(ptr)).name()) << endl;
+	
+		auto sl = new (ptr) util::skiparraylist<char>;
+		
+	}
+	
 	shmfixedpool<A,shglobal4>::detach(pool);
 	
 	return 0;
